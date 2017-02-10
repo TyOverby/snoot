@@ -1,0 +1,6 @@
+fn_call_width = 80
+struct_lit_width = 4
+fn_args_density = "Vertical"
+fn_args_layout = "Block"
+fn_arg_indent = "Tabbed"
+use_try_shorthand = true
