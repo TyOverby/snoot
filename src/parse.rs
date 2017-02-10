@@ -1,9 +1,7 @@
 use tendril::StrTendril;
 use super::token::*;
-use itertools::structs::PutBack;
-use itertools::put_back;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Span {
     text: StrTendril,
 
@@ -23,17 +21,12 @@ pub enum Sexpr {
         closing_token: TokenInfo,
 
         children: Vec<Sexpr>,
-        span: Span
+        span: Span,
     },
     UnaryOperator {
         op: TokenInfo,
         child: Box<Sexpr>,
         span: Span,
-    },
-    BinaryOperator {
-        op: TokenInfo,
-        left: Box<Sexpr>,
-        right: Box<Sexpr>,
     },
     Number(TokenInfo, Span),
     String(TokenInfo, Span),
@@ -43,15 +36,37 @@ pub enum Sexpr {
 #[derive(Debug)]
 pub enum Diagnostic {
     TokenizationError(TokError),
-    IllegalOperatorGroup(Span),
     UnclosedList(Span),
     UnmatchedListClosing(Span, Span),
+    UnaryOpWithNoArgument(Span),
     ExtraClosing(Span),
 }
 
 pub struct ParseResult {
     pub roots: Vec<Sexpr>,
-    pub diagnostics: Vec<Diagnostic>
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl Sexpr {
+    pub fn span(&self) -> &Span {
+        match self {
+            &Sexpr::List { ref span, .. } => span,
+            &Sexpr::UnaryOperator { ref span, .. } => span,
+            &Sexpr::Number(_, ref span) |
+            &Sexpr::String(_, ref span) |
+            &Sexpr::Ident(_, ref span) => span,
+        }
+    }
+
+    pub fn last_token(&self) -> &TokenInfo {
+        match self {
+            &Sexpr::List { ref closing_token, .. } => closing_token,
+            &Sexpr::UnaryOperator { ref child, .. } => child.last_token(),
+            &Sexpr::Number(ref token, _) |
+            &Sexpr::String(ref token, _) |
+            &Sexpr::Ident(ref token, _) => token,
+        }
+    }
 }
 
 impl Span {
@@ -72,15 +87,17 @@ impl Span {
     }
 
     fn from_spans(start: &Span, end: &Span, string: &StrTendril) -> Span {
-        let (start, end) = if start.byte_start < end.byte_end {
+        let (start, end) = if start.byte_start < end.byte_start {
             (start, end)
         } else {
             (end, start)
         };
 
-        Span {
-            text: string.subtendril(start.byte_start, end.byte_end),
+        let text = string.subtendril(start.byte_start, end.byte_end - start.byte_start);
+        println!("combining {:#?} and {:#?} to get {}", start, end, text);
 
+        Span {
+            text: text,
             line_start: start.line_start,
             column_start: start.column_start,
             byte_start: start.byte_start,
@@ -93,155 +110,167 @@ impl Span {
     }
 }
 
+enum ParseStackItem {
+    Global { children: Vec<Sexpr> },
+    ListOpening {
+        opening: TokenInfo,
+        children: Vec<Sexpr>,
+    },
+    UnaryOperator { op: Option<TokenInfo> },
+}
+
+fn put(stack: &mut Vec<ParseStackItem>, expr: Sexpr, string: &StrTendril) {
+    let recurse = match stack.last_mut().unwrap() {
+        &mut ParseStackItem::Global { ref mut children } => {
+            children.push(expr);
+            None
+        }
+        &mut ParseStackItem::ListOpening { ref mut children, .. } => {
+            children.push(expr);
+            None
+        }
+        &mut ParseStackItem::UnaryOperator { ref mut op } => {
+            let op = op.take().unwrap();
+            let total_span = Span::from_spans(&Span::from_token(&op), expr.span(), string);
+            let finished = Sexpr::UnaryOperator {
+                op: op,
+                child: Box::new(expr),
+                span: total_span,
+            };
+            Some(finished)
+        }
+    };
+
+    match recurse {
+        None => {}
+        Some(expr) => {
+            stack.pop();
+            put(stack, expr, string);
+        }
+    }
+}
+
+fn close(stack: &mut Vec<ParseStackItem>,
+         closed_by: Option<TokenInfo>,
+         diagnostics: &mut Vec<Diagnostic>,
+         string: &StrTendril) {
+    match (stack.pop().unwrap(), closed_by) {
+        (g @ ParseStackItem::Global { .. }, Some(closed_by)) => {
+            stack.push(g);
+            diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by)));
+        }
+        (ParseStackItem::UnaryOperator { op }, closed_by) => {
+            let op = op.unwrap();
+            diagnostics.push(Diagnostic::UnaryOpWithNoArgument(Span::from_token(&op)));
+            close(stack, closed_by, diagnostics, string);
+        }
+        // TODO: Check to see if opening matches close
+        (ParseStackItem::ListOpening { children, opening }, Some(closed_by)) => {
+            let span = Span::from_spans(&Span::from_token(&opening),
+                                        &Span::from_token(&closed_by),
+                                        &string);
+            let list_sexpr = Sexpr::List {
+                opening_token: opening,
+                closing_token: closed_by,
+                children: children,
+                span: span,
+            };
+
+            put(stack, list_sexpr, string);
+        }
+        (ParseStackItem::Global { .. }, None) => {
+            unreachable!();
+        }
+        (ParseStackItem::ListOpening { children, opening }, None) => {
+            let closed_token = if let Some(chld) = children.last() {
+                chld.last_token().clone()
+            } else {
+                opening.clone()
+            };
+
+            let span = Span::from_spans(&Span::from_token(&opening),
+                                        &Span::from_token(&closed_token),
+                                        &string);
+
+            let list_sexpr = Sexpr::List {
+                opening_token: opening,
+                closing_token: closed_token,
+                children: children,
+                span: span.clone(),
+            };
+            put(stack, list_sexpr, string);
+
+            diagnostics.push(Diagnostic::UnclosedList(span));
+        }
+    }
+}
+
 pub fn parse<I>(string: &StrTendril, tokens: I) -> ParseResult
-    where I: Iterator<Item=TokResult<TokenInfo>> {
+    where I: Iterator<Item = TokResult<TokenInfo>>
+{
 
-    fn parse_one<I>(string: &StrTendril, tokens: &mut PutBack<I>, diagnostics: &mut Vec<Diagnostic>) -> Result<Option<Sexpr>, ()>
-        where I: Iterator<Item=TokResult<TokenInfo>> {
-        let token = match tokens.next() {
-            Some(Ok(t)) => t,
-            Some(Err(e)) => {
-                diagnostics.push(Diagnostic::TokenizationError(e));
-                return Err(());
-            }
-            None => return Ok(None),
-        };
+    fn actual_parse<I>(string: &StrTendril, mut tokens: I, diag: &mut Vec<Diagnostic>) -> Vec<Sexpr>
+        where I: Iterator<Item = TokResult<TokenInfo>>
+    {
 
-        let sexpr = match token.typ {
-            TokenType::String => {
-                let span = Span::from_token(&token);
-                Sexpr::String(token, span)
-            }
-            TokenType::Number => {
-                let span = Span::from_token(&token);
-                Sexpr::Number(token, span)
-            }
-            TokenType::Identifier => {
-                let span = Span::from_token(&token);
-                Sexpr::Ident(token, span)
-            }
-            TokenType::BinaryOperator => {
-                diagnostics.push(Diagnostic::IllegalOperatorGroup(Span::from_token(&token)));
-                return Err(());
-            }
-            TokenType::ListClosing => {
-                tokens.put_back(Ok(token));
-                return Ok(None);
-            }
-            TokenType::Whitespace => {
-                unreachable!();
-            }
-            TokenType::UnaryOperator => {
-                unimplemented!();
-            }
-            TokenType::ListOpening => {
-                let mut children = vec![];
-                let close;
-                loop {
-                    match parse_one(string, tokens, diagnostics) {
-                        Ok(Some(child)) => children.push(child),
-                        Ok(None) => match tokens.next() {
-                            Some(Ok(t)) => {
-                                // TODO: check to see if these match up
+        let mut parse_stack = vec![ParseStackItem::Global { children: vec![] }];
 
-                                /*
-                                diagnostics.push(Diagnostic::UnmatchedListClosing(
-                                Span::from_token(token),
-                                Span::from_token(t)));
-                                */
-                                close = t;
-                                break;
-                            }
-                            None => {
-                                diagnostics.push(Diagnostic::UnclosedList(Span::from_token(&token)));
-                                return Err(());
-                            }
-                            Some(Err(e)) => {
-                                diagnostics.push(Diagnostic::TokenizationError(e));
-                                return Err(());
-                            }
-                        },
-                        Err(()) => {
-                            return Err(());
-                        }
-                    }
-                }
-
-                let span = Span::from_spans(&Span::from_token(&token), &Span::from_token(&close), string);
-
-                Sexpr::List {
-                    opening_token: token,
-                    closing_token: close,
-                    children: children,
-                    span: span,
-                }
-            }
-        };
-
-        Ok(Some(sexpr))
-    }
-
-    fn parse_lookahead<I>(string: &StrTendril, tokens: &mut PutBack<I>, diagnostics: &mut Vec<Diagnostic>) -> Result<Option<Sexpr>, ()>
-        where I: Iterator<Item=TokResult<TokenInfo>> {
-        let first = match parse_one(string, tokens, diagnostics) {
-            Ok(Some(s)) => s,
-            Ok(None) => return Ok(None),
-            Err(()) => return Err(()),
-        };
-
-        let binary_op = match tokens.next() {
-            Some(Ok(ref t)) if t.typ == TokenType::BinaryOperator => t.clone(),
-            Some(other) => {
-                tokens.put_back(other);
-                return Ok(Some(first));
-            }
-            None => return Ok(Some(first))
-        };
-
-        let second = match parse_lookahead(string, tokens, diagnostics) {
-            Ok(Some(s)) => s,
-            Ok(None) => return Ok(None),
-            Err(()) => return Err(()),
-        };
-
-        Ok(Some(Sexpr::BinaryOperator {
-            op: binary_op,
-            left: Box::new(first),
-            right: Box::new(second),
-        }))
-    }
-
-
-    fn actually_parse<I>(string: &StrTendril, tokens: &mut PutBack<I>, diagnostics: &mut Vec<Diagnostic>) -> Vec<Sexpr>
-        where I: Iterator<Item=TokResult<TokenInfo>> {
-        let mut out = vec![];
         loop {
-            match parse_lookahead(string, tokens, diagnostics) {
-                Ok(Some(sexpr)) => out.push(sexpr),
-                Ok(None) => break,
-                Err(()) => continue,
+            let token = match tokens.next() {
+                Some(Ok(t)) => t,
+                Some(Err(e)) => {
+                    diag.push(Diagnostic::TokenizationError(e));
+                    continue;
+                }
+                None => break,
+            };
+
+            match token.typ {
+                TokenType::String => {
+                    let span = Span::from_token(&token);
+                    put(&mut parse_stack, Sexpr::String(token, span), string);
+                }
+                TokenType::Number => {
+                    let span = Span::from_token(&token);
+                    put(&mut parse_stack, Sexpr::Number(token, span), string);
+                }
+                TokenType::Identifier => {
+                    let span = Span::from_token(&token);
+                    put(&mut parse_stack, Sexpr::Ident(token, span), string);
+                }
+                TokenType::UnaryOperator => {
+                    parse_stack.push(ParseStackItem::UnaryOperator { op: Some(token) });
+                }
+                TokenType::Whitespace => { /* do nothing for now */ }
+                TokenType::ListOpening => {
+                    parse_stack.push(ParseStackItem::ListOpening {
+                        opening: token,
+                        children: vec![],
+                    });
+                }
+                TokenType::ListClosing => {
+                    close(&mut parse_stack, Some(token), diag, string);
+                }
             }
         }
 
-        out
+        while parse_stack.len() != 1 {
+            close(&mut parse_stack, None, diag, string);
+        }
+
+        let global = parse_stack.pop().unwrap();
+        if let ParseStackItem::Global { children } = global {
+            children
+        } else {
+            panic!("not global");
+        }
     }
 
-    let mut diags = vec![];
-
-    // filter out all the whitespace
-    let mut tokens = put_back(tokens.filter(|tok| {
-        if let Ok(TokenType::Whitespace) = tok.as_ref().map(|t| t.typ) {
-            false
-        } else {
-            true
-        }
-    }));
-
-    let roots = actually_parse(string, &mut tokens, &mut diags);
-
+    let mut diagnostics = vec![];
+    let out = actual_parse(string, tokens, &mut diagnostics);
     ParseResult {
-        roots: roots,
-        diagnostics: diags,
+        roots: out,
+        diagnostics: diagnostics,
     }
 }
 
@@ -267,105 +296,100 @@ mod test {
 
     #[test]
     fn single_ident() {
-        test_ok("foo", vec![Sexpr::Ident(
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Identifier,
-                string: "foo".into(),
-            },
-            Span {
-                text: "foo".into(),
+        test_ok("foo",
+                vec![Sexpr::Ident(TokenInfo {
+                                      line_number: 1,
+                                      column_number: 1,
+                                      byte_offset: 0,
+                                      typ: TokenType::Identifier,
+                                      string: "foo".into(),
+                                  },
+                                  Span {
+                                      text: "foo".into(),
 
-                line_start: 1,
-                column_start: 1,
-                byte_start: 0,
+                                      line_start: 1,
+                                      column_start: 1,
+                                      byte_start: 0,
 
-                line_end: 1,
-                column_end: 4,
-                byte_end: 3,
-            }
-        )]);
+                                      line_end: 1,
+                                      column_end: 4,
+                                      byte_end: 3,
+                                  })]);
     }
 
     #[test]
     fn two_idents() {
-        test_ok("foo bar", vec![
-            Sexpr::Ident(
-                TokenInfo {
-                    line_number: 1,
-                    column_number: 1,
-                    byte_offset: 0,
-                    typ: TokenType::Identifier,
-                    string: "foo".into(),
-                },
-                Span {
-                    text: "foo".into(),
+        test_ok("foo bar",
+                vec![Sexpr::Ident(TokenInfo {
+                                      line_number: 1,
+                                      column_number: 1,
+                                      byte_offset: 0,
+                                      typ: TokenType::Identifier,
+                                      string: "foo".into(),
+                                  },
+                                  Span {
+                                      text: "foo".into(),
 
-                    line_start: 1,
-                    column_start: 1,
-                    byte_start: 0,
+                                      line_start: 1,
+                                      column_start: 1,
+                                      byte_start: 0,
 
-                    line_end: 1,
-                    column_end: 4,
-                    byte_end: 3,
-                }
-            ),
-            Sexpr::Ident(
-                TokenInfo {
-                    line_number: 1,
-                    column_number: 5,
-                    byte_offset: 4,
-                    typ: TokenType::Identifier,
-                    string: "bar".into(),
-                },
-                Span {
-                    text: "bar".into(),
+                                      line_end: 1,
+                                      column_end: 4,
+                                      byte_end: 3,
+                                  }),
+                     Sexpr::Ident(TokenInfo {
+                                      line_number: 1,
+                                      column_number: 5,
+                                      byte_offset: 4,
+                                      typ: TokenType::Identifier,
+                                      string: "bar".into(),
+                                  },
+                                  Span {
+                                      text: "bar".into(),
 
-                    line_start: 1,
-                    column_start: 5,
-                    byte_start: 4,
+                                      line_start: 1,
+                                      column_start: 5,
+                                      byte_start: 4,
 
-                    line_end: 1,
-                    column_end: 8,
-                    byte_end: 7,
-                }
-            )
-        ]);
+                                      line_end: 1,
+                                      column_end: 8,
+                                      byte_end: 7,
+                                  })]);
     }
 
     #[test]
     fn parens() {
-        test_ok("()", vec![Sexpr::List {
-            opening_token: TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
-            closing_token: TokenInfo {
-                line_number: 1,
-                column_number: 2,
-                byte_offset: 1,
-                typ: TokenType::ListClosing,
-                string: ")".into(),
-            },
+        test_ok("()",
+                vec![Sexpr::List {
+                         opening_token: TokenInfo {
+                             line_number: 1,
+                             column_number: 1,
+                             byte_offset: 0,
+                             typ: TokenType::ListOpening,
+                             string: "(".into(),
+                         },
+                         closing_token: TokenInfo {
+                             line_number: 1,
+                             column_number: 2,
+                             byte_offset: 1,
+                             typ: TokenType::ListClosing,
+                             string: ")".into(),
+                         },
 
-            children: vec![],
-            span: Span {
-                text: "()".into(),
+                         children: vec![],
+                         span: Span {
+                             text: "()".into(),
 
-                line_start: 1,
-                column_start: 1,
-                byte_start: 0,
+                             line_start: 1,
+                             column_start: 1,
+                             byte_start: 0,
 
-                line_end: 1,
-                column_end: 3,
-                byte_end: 2,
-            }
-        }])
+                             line_end: 1,
+                             column_end: 3,
+                             byte_end: 2,
+                         },
+                     }])
     }
 }
 
@@ -387,11 +411,6 @@ mod trx_test {
             entire: String,
             child: Box<SimpleSexpr>,
         },
-        BinaryOperator {
-            op: String,
-            left: Box<SimpleSexpr>,
-            right: Box<SimpleSexpr>,
-        },
         Number(String),
         String(String),
         Ident(String),
@@ -400,22 +419,21 @@ mod trx_test {
     impl From<Sexpr> for SimpleSexpr {
         fn from(sexpr: Sexpr) -> SimpleSexpr {
             match sexpr {
-                Sexpr::List {opening_token, closing_token, children, span} => SimpleSexpr::List {
-                    opening: opening_token.string.into(),
-                    closing: closing_token.string.into(),
-                    entire: span.text.into(),
-                    children: children.into_iter().map(From::from).collect(),
-                },
-                Sexpr::UnaryOperator {op, child, span} => SimpleSexpr::UnaryOperator {
-                    op: op.string.into(),
-                    entire: span.text.into(),
-                    child: Box::new(From::from(*child)),
-                },
-                Sexpr::BinaryOperator {op, left, right} => SimpleSexpr::BinaryOperator {
-                    op: op.string.into(),
-                    left: Box::new(From::from(*left)),
-                    right: Box::new(From::from(*right)),
-                },
+                Sexpr::List { opening_token, closing_token, children, span } => {
+                    SimpleSexpr::List {
+                        opening: opening_token.string.into(),
+                        closing: closing_token.string.into(),
+                        entire: span.text.into(),
+                        children: children.into_iter().map(From::from).collect(),
+                    }
+                }
+                Sexpr::UnaryOperator { op, child, span } => {
+                    SimpleSexpr::UnaryOperator {
+                        op: op.string.into(),
+                        entire: span.text.into(),
+                        child: Box::new(From::from(*child)),
+                    }
+                }
                 Sexpr::Number(tok, _) => SimpleSexpr::Number(tok.string.into()),
                 Sexpr::String(tok, _) => SimpleSexpr::String(tok.string.into()),
                 Sexpr::Ident(tok, _) => SimpleSexpr::Ident(tok.string.into()),
@@ -423,7 +441,7 @@ mod trx_test {
         }
     }
 
-    fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>){
+    fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>) {
         let input: StrTendril = string.into();
         let to = TokenizationOptions::default();
         let cto = to.compile().unwrap();
@@ -443,33 +461,31 @@ mod trx_test {
     #[test]
     fn ident() {
         parse_simple_ok("foo", vec![SimpleSexpr::Ident("foo".into())]);
-        parse_simple_ok("foo bar", vec![
-            SimpleSexpr::Ident("foo".into()),
-            SimpleSexpr::Ident("bar".into()),
-        ]);
+        parse_simple_ok("foo bar",
+                        vec![SimpleSexpr::Ident("foo".into()), SimpleSexpr::Ident("bar".into())]);
     }
 
     #[test]
     fn list() {
-        parse_simple_ok("()", vec![SimpleSexpr::List{
-            opening: "(".into(),
-            closing: ")".into(),
-            entire: "()".into(),
-            children: vec![],
-        }]);
+        parse_simple_ok("()",
+                        vec![SimpleSexpr::List {
+                                 opening: "(".into(),
+                                 closing: ")".into(),
+                                 entire: "()".into(),
+                                 children: vec![],
+                             }]);
 
-        parse_simple_ok("(())", vec![SimpleSexpr::List{
-            opening: "(".into(),
-            closing: ")".into(),
-            entire: "(())".into(),
-            children: vec![
-                SimpleSexpr::List{
-                    opening: "(".into(),
-                    closing: ")".into(),
-                    entire: "()".into(),
-                    children: vec![],
-                }
-            ],
-        }]);
+        parse_simple_ok("(())",
+                        vec![SimpleSexpr::List {
+                                 opening: "(".into(),
+                                 closing: ")".into(),
+                                 entire: "(())".into(),
+                                 children: vec![SimpleSexpr::List {
+                                                    opening: "(".into(),
+                                                    closing: ")".into(),
+                                                    entire: "()".into(),
+                                                    children: vec![],
+                                                }],
+                             }]);
     }
 }

@@ -7,7 +7,6 @@ pub struct TokenizationOptions<'a> {
     pub list_chars: Vec<(&'a str, &'a str)>,
     pub string_chars: Vec<&'a str>,
     pub string_escape_char: &'a str,
-    pub binary_operators: Vec<&'a str>,
     pub unary_operators: Vec<&'a str>,
     pub numbers: Vec<&'a str>,
     pub identifiers: Vec<&'a str>,
@@ -19,7 +18,6 @@ pub struct CompiledTokenizationOptions {
     list_closing: Regex,
     string_chars: Regex,
     _string_escape_char: Regex,
-    binary_operators: Regex,
     unary_operators: Regex,
     numbers: Regex,
     identifiers: Regex,
@@ -30,7 +28,6 @@ pub enum TokenType {
     ListOpening,
     ListClosing,
     Whitespace,
-    BinaryOperator,
     UnaryOperator,
     String,
     Number,
@@ -106,16 +103,16 @@ impl <'a> Iterator for TokenIterator<'a> {
 
 fn next_token(string: &StrTendril, cto: &CompiledTokenizationOptions) -> Option<TokResult<(TokenType, StrTendril)>> {
     fn take(m: Matches, string: &StrTendril) -> Option<StrTendril> {
-        let mut longest = 0;
+        let mut longest_length = 0;
 
         for m in m {
             if m.start() == 0 {
-                longest = ::std::cmp::max(longest, m.end());
+                longest_length = ::std::cmp::max(longest_length, m.end());
             }
         }
 
-        if longest != 0 {
-            let l = string.subtendril(0, longest as u32);
+        if longest_length != 0 {
+            let l = string.subtendril(0, longest_length as u32);
             Some(l)
         } else {
             None
@@ -142,10 +139,6 @@ fn next_token(string: &StrTendril, cto: &CompiledTokenizationOptions) -> Option<
         unimplemented!();
     }
 
-    if let Some(s) = take(cto.binary_operators.find_iter(&string), &string) {
-        return Some(Ok((TokenType::BinaryOperator, s)));
-    }
-
     if let Some(s) = take(cto.unary_operators.find_iter(&string), &string) {
         return Some(Ok((TokenType::UnaryOperator, s)));
     }
@@ -168,7 +161,6 @@ impl <'a> TokenizationOptions<'a> {
             list_chars: vec![("\\(", "\\)"), ("\\{", "\\}"), ("\\[", "\\]")],
             string_chars: vec!["\""],
             string_escape_char: "\\\\",
-            binary_operators: vec!["\\."],
             unary_operators: vec![",", "@", "'"],
             numbers: vec!["[+-]?[0-9]+\\.[0-9]+", "[+-]?[0-9]+"],
             identifiers: vec!["[a-zA-Z_-]+[a-zA-Z0-9_-]*"],
@@ -191,6 +183,7 @@ impl <'a> TokenizationOptions<'a> {
                 all.push('+');
             }
 
+
             Regex::new(&all)
         }
 
@@ -199,7 +192,6 @@ impl <'a> TokenizationOptions<'a> {
             list_chars,
             string_chars,
             string_escape_char,
-            binary_operators,
             unary_operators,
             numbers,
             identifiers
@@ -213,7 +205,6 @@ impl <'a> TokenizationOptions<'a> {
             list_closing: try!(group(list_close.into_iter(), false)),
             string_chars: try!(group(string_chars.into_iter(), false)),
             _string_escape_char: try!(Regex::new(string_escape_char)),
-            binary_operators: try!(group(binary_operators.into_iter(), false)),
             unary_operators: try!(group(unary_operators.into_iter(), false)),
             numbers: try!(group(numbers.into_iter(), false)),
             identifiers: try!(group(identifiers.into_iter(), false)),
@@ -346,18 +337,6 @@ mod test {
                 string: "(".into(),
             },
         ])
-    }
-
-    #[test]
-    fn binary_literal() {
-        assert_eq!(all_ok("."), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::BinaryOperator,
-                string: ".".into(),
-            }]);
     }
 
     #[test]
