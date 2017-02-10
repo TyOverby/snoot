@@ -1,0 +1,9 @@
+[package]
+name = "sexpr"
+version = "0.1.0"
+authors = ["Ty Overby <ty@pre-alpha.com>"]
+
+[dependencies]
+tendril = "0.2.3"
+regex = "0.2.1"
+itertools = "0.5.9"
