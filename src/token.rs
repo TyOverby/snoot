@@ -60,11 +60,13 @@ pub struct TokenIterator<'a> {
     errored: bool,
 }
 
-impl <'a> Iterator for TokenIterator<'a> {
+impl<'a> Iterator for TokenIterator<'a> {
     type Item = TokResult<TokenInfo>;
 
     fn next(&mut self) -> Option<TokResult<TokenInfo>> {
-        if self.errored { return None; }
+        if self.errored {
+            return None;
+        }
         match next_token(&self.remaining, self.cto) {
             None => None,
             Some(Err(e)) => {
@@ -101,8 +103,14 @@ impl <'a> Iterator for TokenIterator<'a> {
     }
 }
 
-fn next_token(string: &StrTendril, cto: &CompiledTokenizationOptions) -> Option<TokResult<(TokenType, StrTendril)>> {
-    fn take(m: Matches, string: &StrTendril) -> Option<StrTendril> {
+fn next_token(
+    string: &StrTendril,
+    cto: &CompiledTokenizationOptions
+) -> Option<TokResult<(TokenType, StrTendril)>> {
+    fn take(
+        m: Matches,
+        string: &StrTendril
+    ) -> Option<StrTendril> {
         let mut longest_length = 0;
 
         for m in m {
@@ -154,7 +162,7 @@ fn next_token(string: &StrTendril, cto: &CompiledTokenizationOptions) -> Option<
     return Some(Err(TokError::NoMatch(string.clone())));
 }
 
-impl <'a> TokenizationOptions<'a> {
+impl<'a> TokenizationOptions<'a> {
     pub fn default() -> TokenizationOptions<'static> {
         TokenizationOptions {
             whitespace: vec![" ", "\t", "\n"],
@@ -168,7 +176,10 @@ impl <'a> TokenizationOptions<'a> {
     }
 
     pub fn compile(self) -> Result<CompiledTokenizationOptions, RegexError> {
-        fn group<'a, I: Iterator<Item=&'a str>>(strings: I, conjoin: bool) -> Result<Regex, RegexError>{
+        fn group<'a, I: Iterator<Item = &'a str>>(
+            strings: I,
+            conjoin: bool
+        ) -> Result<Regex, RegexError> {
             let mut all: String = "\\A(".into();
             for string in strings {
                 all.push('(');
@@ -187,15 +198,13 @@ impl <'a> TokenizationOptions<'a> {
             Regex::new(&all)
         }
 
-        let TokenizationOptions {
-            whitespace,
-            list_chars,
-            string_chars,
-            string_escape_char,
-            unary_operators,
-            numbers,
-            identifiers
-        } = self;
+        let TokenizationOptions { whitespace,
+                                  list_chars,
+                                  string_chars,
+                                  string_escape_char,
+                                  unary_operators,
+                                  numbers,
+                                  identifiers } = self;
 
         let (list_op, list_close): (Vec<_>, Vec<_>) = list_chars.into_iter().unzip();
 
@@ -212,14 +221,17 @@ impl <'a> TokenizationOptions<'a> {
     }
 }
 
-pub fn tokenize<'a>(string: StrTendril, cto: &'a CompiledTokenizationOptions) -> TokenIterator<'a> {
+pub fn tokenize<'a>(
+    string: StrTendril,
+    cto: &'a CompiledTokenizationOptions
+) -> TokenIterator<'a> {
     TokenIterator {
         remaining: string,
         line_number: 1,
         column_number: 1,
         byte_offset: 0,
         cto: cto,
-        errored: false
+        errored: false,
     }
 }
 
@@ -241,210 +253,205 @@ mod test {
 
     #[test]
     fn single_open_paren() {
-        assert_eq!(all_ok("("), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            }]);
+        assert_eq!(all_ok("("),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        }]);
     }
 
     #[test]
     fn single_closing_paren() {
-        assert_eq!(all_ok(")"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListClosing,
-                string: ")".into(),
-            }]);
+        assert_eq!(all_ok(")"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::ListClosing,
+                            string: ")".into(),
+                        }]);
     }
 
     #[test]
     fn paired_parens() {
-        assert_eq!(all_ok("()"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 2,
-                byte_offset: 1,
-                typ: TokenType::ListClosing,
-                string: ")".into(),
-            },
-        ])
+        assert_eq!(all_ok("()"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 2,
+                            byte_offset: 1,
+                            typ: TokenType::ListClosing,
+                            string: ")".into(),
+                        }])
     }
 
     #[test]
     fn nested_parens() {
 
-        assert_eq!(all_ok("(())"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 2,
-                byte_offset: 1,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
+        assert_eq!(all_ok("(())"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 2,
+                            byte_offset: 1,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        },
 
-            TokenInfo {
-                line_number: 1,
-                column_number: 3,
-                byte_offset: 2,
-                typ: TokenType::ListClosing,
-                string: ")".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 4,
-                byte_offset: 3,
-                typ: TokenType::ListClosing,
-                string: ")".into(),
-            },
-        ])
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 3,
+                            byte_offset: 2,
+                            typ: TokenType::ListClosing,
+                            string: ")".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 4,
+                            byte_offset: 3,
+                            typ: TokenType::ListClosing,
+                            string: ")".into(),
+                        }])
     }
 
     #[test]
     fn double_parens() {
-        assert_eq!(all_ok("(("), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 2,
-                byte_offset: 1,
-                typ: TokenType::ListOpening,
-                string: "(".into(),
-            },
-        ])
+        assert_eq!(all_ok("(("),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 2,
+                            byte_offset: 1,
+                            typ: TokenType::ListOpening,
+                            string: "(".into(),
+                        }])
     }
 
     #[test]
     fn unary_literal() {
-        assert_eq!(all_ok("@"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::UnaryOperator,
-                string: "@".into(),
-            }]);
+        assert_eq!(all_ok("@"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::UnaryOperator,
+                            string: "@".into(),
+                        }]);
     }
 
     #[test]
     fn numbers() {
-        assert_eq!(all_ok("123"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Number,
-                string: "123".into(),
-            }]);
+        assert_eq!(all_ok("123"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Number,
+                            string: "123".into(),
+                        }]);
 
-        assert_eq!(all_ok("-123"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Number,
-                string: "-123".into(),
-            }]);
+        assert_eq!(all_ok("-123"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Number,
+                            string: "-123".into(),
+                        }]);
 
-        assert_eq!(all_ok("123.456"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Number,
-                string: "123.456".into(),
-            }]);
+        assert_eq!(all_ok("123.456"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Number,
+                            string: "123.456".into(),
+                        }]);
 
-        assert_eq!(all_ok("+123.456"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Number,
-                string: "+123.456".into(),
-            }]);
+        assert_eq!(all_ok("+123.456"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Number,
+                            string: "+123.456".into(),
+                        }]);
     }
 
     #[test]
     fn identifier() {
-        assert_eq!(all_ok("hello-world"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Identifier,
-                string: "hello-world".into(),
-            }]);
+        assert_eq!(all_ok("hello-world"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Identifier,
+                            string: "hello-world".into(),
+                        }]);
 
-        assert_eq!(all_ok("a"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Identifier,
-                string: "a".into(),
-            }]);
+        assert_eq!(all_ok("a"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Identifier,
+                            string: "a".into(),
+                        }]);
 
-        assert_eq!(all_ok("-"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Identifier,
-                string: "-".into(),
-            }]);
+        assert_eq!(all_ok("-"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Identifier,
+                            string: "-".into(),
+                        }]);
     }
 
     #[test]
     fn ident_white_ident() {
-        assert_eq!(all_ok("hello world"), vec![
-            TokenInfo {
-                line_number: 1,
-                column_number: 1,
-                byte_offset: 0,
-                typ: TokenType::Identifier,
-                string: "hello".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 6,
-                byte_offset: 5,
-                typ: TokenType::Whitespace,
-                string: " ".into(),
-            },
-            TokenInfo {
-                line_number: 1,
-                column_number: 7,
-                byte_offset: 6,
-                typ: TokenType::Identifier,
-                string: "world".into(),
-            },
-        ]);
+        assert_eq!(all_ok("hello world"),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Identifier,
+                            string: "hello".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 6,
+                            byte_offset: 5,
+                            typ: TokenType::Whitespace,
+                            string: " ".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 7,
+                            byte_offset: 6,
+                            typ: TokenType::Identifier,
+                            string: "world".into(),
+                        }]);
     }
 }
-

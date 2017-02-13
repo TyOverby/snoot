@@ -62,7 +62,7 @@ impl ScopeStack {
             &mut ParseStackItem::UnaryOperator { ref mut op } => {
                 let op = op.take().unwrap();
                 let total_span =
-                    Span::from_spans(&Span::from_token(&op), expr.span(), &self.string);
+                    Span::from_spans(&Span::from_token(&op, &self.string), expr.span(), &self.string);
                 let finished = Sexpr::UnaryOperator {
                     op: op,
                     child: Box::new(expr),
@@ -85,17 +85,17 @@ impl ScopeStack {
         match (self.stack.pop().unwrap(), closed_by) {
             (g @ ParseStackItem::Global { .. }, Some(closed_by)) => {
                 self.stack.push(g);
-                diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by)));
+                diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by, &self.string)));
             }
             (ParseStackItem::UnaryOperator { op }, closed_by) => {
                 let op = op.unwrap();
-                diagnostics.push(Diagnostic::UnaryOpWithNoArgument(Span::from_token(&op)));
+                diagnostics.push(Diagnostic::UnaryOpWithNoArgument(Span::from_token(&op, &self.string)));
                 self.close(closed_by, diagnostics);
             }
             // TODO: Check to see if opening matches close
             (ParseStackItem::ListOpening { children, opening }, Some(closed_by)) => {
-                let span = Span::from_spans(&Span::from_token(&opening),
-                                            &Span::from_token(&closed_by),
+                let span = Span::from_spans(&Span::from_token(&opening, &self.string),
+                                            &Span::from_token(&closed_by, &self.string),
                                             &self.string);
                 let list_sexpr = Sexpr::List {
                     opening_token: opening,
@@ -116,8 +116,8 @@ impl ScopeStack {
                     opening.clone()
                 };
 
-                let span = Span::from_spans(&Span::from_token(&opening),
-                                            &Span::from_token(&closed_token),
+                let span = Span::from_spans(&Span::from_token(&opening, &self.string),
+                                            &Span::from_token(&closed_token, &self.string),
                                             &self.string);
 
                 let list_sexpr = Sexpr::List {

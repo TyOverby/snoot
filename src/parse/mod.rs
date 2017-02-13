@@ -2,22 +2,23 @@ use tendril::StrTendril;
 use super::token::*;
 
 mod scopestack;
-mod test;
-mod simplified_test;
+pub mod test;
+pub mod simplified_test;
 
 use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Span {
-    text: StrTendril,
+    pub text: StrTendril,
+    pub lines: StrTendril,
 
-    line_start: u32,
-    column_start: u32,
-    byte_start: u32,
+    pub line_start: u32,
+    pub column_start: u32,
+    pub byte_start: u32,
 
-    line_end: u32,
-    column_end: u32,
-    byte_end: u32,
+    pub line_end: u32,
+    pub column_end: u32,
+    pub byte_end: u32,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -85,13 +86,45 @@ impl Sexpr {
     }
 }
 
+fn find_newline(
+    t: &[u8],
+    pos: u32,
+    direction: i32
+) -> u32 {
+    // We're searching backwards and we've hit the start of the buffer
+    if pos == 0 && direction == -1 {
+        return 0;
+    }
+    // We're searching forwards and we've hit the end of the buffer
+    if pos as usize == t.len() && direction == 1 {
+        return pos;
+    }
+
+    match (t[pos as usize], direction) {
+        (b'\n', -1) => return pos + 1,
+        (b'\n', 1) => return pos,
+        _ => {}
+    }
+
+    return find_newline(t, ((pos as i64) + (direction as i64)) as u32, direction);
+}
+
 impl Span {
-    pub fn from_token(token: &TokenInfo) -> Span {
+    pub fn from_token(
+        token: &TokenInfo,
+        string: &StrTendril
+    ) -> Span {
         let chars = token.string.chars().count() as u32;
         let bytes = token.string.len() as u32;
 
+        let start_line_pos = find_newline(string.as_bytes(), token.byte_offset, -1);
+        let end_line_pos = find_newline(string.as_bytes(), token.byte_offset, 1);
+        assert!(end_line_pos >= start_line_pos);
+        let line = string.subtendril(start_line_pos, end_line_pos - start_line_pos);
+
         Span {
             text: token.string.clone(),
+            lines: line,
             line_start: token.line_number,
             column_start: token.column_number,
             byte_start: token.byte_offset,
@@ -102,7 +135,11 @@ impl Span {
         }
     }
 
-    pub fn from_spans(start: &Span, end: &Span, string: &StrTendril) -> Span {
+    pub fn from_spans(
+        start: &Span,
+        end: &Span,
+        string: &StrTendril
+    ) -> Span {
         let (start, end) = if start.byte_start < end.byte_start {
             (start, end)
         } else {
@@ -110,10 +147,15 @@ impl Span {
         };
 
         let text = string.subtendril(start.byte_start, end.byte_end - start.byte_start);
-        println!("combining {:#?} and {:#?} to get {}", start, end, text);
+
+        let start_line_pos = find_newline(string.as_bytes(), start.byte_start, -1);
+        let end_line_pos = find_newline(string.as_bytes(), end.byte_end, 1);
+        assert!(end_line_pos >= start_line_pos);
+        let lines = string.subtendril(start_line_pos, end_line_pos - start_line_pos);
 
         Span {
             text: text,
+            lines: lines,
             line_start: start.line_start,
             column_start: start.column_start,
             byte_start: start.byte_start,
@@ -126,7 +168,10 @@ impl Span {
     }
 }
 
-pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
+pub fn parse<I>(
+    string: &StrTendril,
+    mut tokens: I
+) -> ParseResult
     where I: Iterator<Item = TokResult<TokenInfo>>
 {
 
@@ -145,15 +190,15 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
 
         match token.typ {
             TokenType::String => {
-                let span = Span::from_token(&token);
+                let span = Span::from_token(&token, string);
                 scopestack.put(Sexpr::String(token, span));
             }
             TokenType::Number => {
-                let span = Span::from_token(&token);
+                let span = Span::from_token(&token, string);
                 scopestack.put(Sexpr::Number(token, span));
             }
             TokenType::Identifier => {
-                let span = Span::from_token(&token);
+                let span = Span::from_token(&token, string);
                 scopestack.put(Sexpr::Ident(token, span));
             }
             TokenType::UnaryOperator => {
@@ -174,5 +219,31 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
     ParseResult {
         roots: out,
         diagnostics: diagnostics,
+    }
+}
+
+#[test]
+fn find_newline_test() {
+    let string = b"abc\n123\nxyz";
+    {
+        let st = find_newline(string, 5, -1) as usize;
+        let en = find_newline(string, 5, 1) as usize;
+        assert_eq!(st, 4);
+        assert_eq!(en, 7);
+        assert_eq!(&string[st..en], b"123");
+    }
+    {
+        let st = find_newline(string, 1, -1) as usize;
+        let en = find_newline(string, 1, 1) as usize;
+        assert_eq!(st, 0);
+        assert_eq!(en, 3);
+        assert_eq!(&string[st..en], b"abc");
+    }
+    {
+        let st = find_newline(string, 9, -1) as usize;
+        let en = find_newline(string, 9, 1) as usize;
+        assert_eq!(st, 8);
+        assert_eq!(en, 11);
+        assert_eq!(&string[st..en], b"xyz");
     }
 }

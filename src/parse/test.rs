@@ -2,7 +2,7 @@
 
 use super::*;
 
-fn test_ok(input: &str, expected: Vec<Sexpr>) {
+pub fn test_ok(input: &str, expected: Vec<Sexpr>) {
     let input: StrTendril = input.into();
     let to = TokenizationOptions::default();
     let cto = to.compile().unwrap();
@@ -29,6 +29,7 @@ fn single_ident() {
                               },
                               Span {
                                   text: "foo".into(),
+                                  lines: "foo".into(),
 
                                   line_start: 1,
                                   column_start: 1,
@@ -52,6 +53,7 @@ fn two_idents() {
                               },
                               Span {
                                   text: "foo".into(),
+                                  lines: "foo bar".into(),
 
                                   line_start: 1,
                                   column_start: 1,
@@ -70,6 +72,7 @@ fn two_idents() {
                               },
                               Span {
                                   text: "bar".into(),
+                                  lines: "foo bar".into(),
 
                                   line_start: 1,
                                   column_start: 5,
@@ -103,6 +106,7 @@ fn parens() {
                      children: vec![],
                      span: Span {
                          text: "()".into(),
+                         lines: "()".into(),
 
                          line_start: 1,
                          column_start: 1,
