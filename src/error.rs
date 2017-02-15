@@ -90,7 +90,8 @@ mod test {
     fn test_basic_error() {
         let source = r#"(define map (lambda (xs f)
   (if (nil xs) xs
-      (cons (f (car xs)) (map (cdr xs) f)))))
+      (cons (f (car xs))
+            (map (cdr xs) f)))))
 "#;
         let trees = parse_ok(source);
         let error = format_error("this is the message", &super::ErrorLevel::Info, trees[0].span(), "<anon>");
@@ -100,6 +101,7 @@ r#"info: this is the message
  --> <anon>:1:1
 1 | (define map (lambda (xs f)
 2 |   (if (nil xs) xs
-3 |       (cons (f (car xs)) (map (cdr xs) f)))))"#);
+3 |       (cons (f (car xs))
+4 |             (map (cdr xs) f)))))"#);
     }
 }
