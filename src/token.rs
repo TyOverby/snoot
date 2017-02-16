@@ -62,12 +62,9 @@ impl<S: Parseable> Iterator for TokenIterator<S> {
                 }
 
                 let bytes_consumed = s.len();
-                println!("consumed: {}", bytes_consumed);
                 self.byte_offset += bytes_consumed;
 
-                println!("remaining-a : {:?}", self.remaining);
                 self.remaining = self.remaining.drop_front(bytes_consumed);
-                println!("remaining-b : {:?}", self.remaining);
 
                 r
             }
@@ -108,7 +105,6 @@ fn next_token<S: Parseable>(string: &S) -> Option<TokResult<S, (TokenType, S)>> 
             Some(Ok((TokenType::Atom, string.substring(0, last_idx))))
         }
     };
-    println!("{:?}", next);
     return next
 }
 
