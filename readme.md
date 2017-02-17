@@ -12,7 +12,7 @@ Is this magic!?  Maybe!
 
 ## Parsing
 
-### Example
+#### Example
 ```rust
 extern crate snoot;
 
@@ -29,7 +29,7 @@ fn main() {
 }
 ```
 
-### Output
+#### Output
 
 ```rust
 [
