@@ -2,14 +2,14 @@
 
 <img align="right" width="300px" src="./snoot.png" />
 
-"Parsing s-expressions is easy!" you say.  Well yes - but - does *your* hypothetical s-expression parser
+"Parsing s-expressions is easy" you say.  Well yes - but - does *your* hypothetical s-expression parser
 
 * perform no copies on the source text while parsing?
 * come with an error-reporting and formatting mechanism?
 * keep parsing after encountering the first parse error?
 * have as cute of a name as "Snoot"?
 
-Ok, at the very least, the answer to the last of those is a definitive "no".
+At the very least the answer to the last of those is a definitive "no".
 
 ## Zero Copy Parsing
 Parsing a `&'a str`, no problem, you'll get a `Sexpr<&'a str>` back!  No copying done!
