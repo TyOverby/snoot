@@ -2,9 +2,7 @@
 
 <img align="right" width="300px" src="./snoot.png" />
 
-"Parsing s-expressions is easy!" you say.
-
-Well yes, *but*, does your hypothetical s-expression parser
+"Parsing s-expressions is easy!" you say.  Well yes - but - does *your* hypothetical s-expression parser
 
 * perform no copies on the source text while parsing?
 * come with an error-reporting and formatting mechanism?
@@ -30,9 +28,6 @@ embedded source without even needing to get your hands dirty.
 Do your homemade parsers run home crying after they encounter the first parse error?  Sad.
 Snoot keeps marching on in the face of hardships so that you can report as many errors
 to your users as possible.
-
-## Snoot
-Snoot.
 
 # Examples
 
@@ -74,7 +69,6 @@ info: this is the message
 
 ## Parsing
 
-#### Example
 ```rust
 extern crate snoot;
 
