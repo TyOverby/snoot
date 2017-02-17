@@ -74,7 +74,10 @@ impl<S: Parseable> Iterator for TokenIterator<S> {
 
 fn next_token<S: Parseable>(string: &S) -> Option<TokResult<S, (TokenType, S)>> {
     fn idx_until<F>(s: &str, f: F) -> Option<usize> where F: Fn(char) -> bool {
-        s.char_indices().take_while(|&(_, c)| f(c)).last().map(|(p, _)| p + 1)
+        s.char_indices()
+         .take_while(|&(_, c)| f(c))
+         .last()
+         .map(|(p, c)| p + c.len_utf8())
     }
 
     let first = match string.as_ref().chars().next() {
@@ -299,7 +302,16 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             string: "a".into(),
-                        }]);
+                   }]);
+
+        assert_eq!(all_ok("片仮名"),
+                   vec![TokenInfo {
+                       line_number: 1,
+                       column_number: 1,
+                       byte_offset: 0,
+                       typ: TokenType::Atom,
+                       string: "片仮名".into(),
+                   }]);
 
         assert_eq!(all_ok("-"),
                    vec![TokenInfo {

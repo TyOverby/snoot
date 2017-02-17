@@ -1,96 +1,88 @@
-use tendril::StrTendril;
 use super::token::*;
+use super::Parseable;
 
 mod scopestack;
 pub mod test;
-pub mod simplified_test;
+//pub mod simplified_test;
 
 use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct Span {
-    pub text: StrTendril,
-    pub lines: StrTendril,
+pub struct Span<S: Parseable> {
+    pub text: S,
+    pub lines: S,
 
-    pub line_start: u32,
-    pub column_start: u32,
-    pub byte_start: u32,
+    pub line_start: usize,
+    pub column_start: usize,
+    pub byte_start: usize,
 
-    pub line_end: u32,
-    pub column_end: u32,
-    pub byte_end: u32,
+    pub line_end: usize,
+    pub column_end: usize,
+    pub byte_end: usize,
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum Sexpr {
+pub enum Sexpr<S: Parseable> {
     List {
-        opening_token: TokenInfo,
-        closing_token: TokenInfo,
+        opening_token: TokenInfo<S>,
+        closing_token: TokenInfo<S>,
 
-        children: Vec<Sexpr>,
-        span: Span,
+        children: Vec<Sexpr<S>>,
+        span: Span<S>,
     },
     UnaryOperator {
-        op: TokenInfo,
-        child: Box<Sexpr>,
-        span: Span,
+        op: TokenInfo<S>,
+        child: Box<Sexpr<S>>,
+        span: Span<S>,
     },
-    Number(TokenInfo, Span),
-    String(TokenInfo, Span),
-    Ident(TokenInfo, Span),
+    Terminal(TokenInfo<S>, Span<S>),
+    String(TokenInfo<S>, Span<S>),
 }
 
 #[derive(Debug)]
-pub enum Diagnostic {
-    TokenizationError(TokError),
-    UnclosedList(Span),
-    UnmatchedListClosing(Span, Span),
-    UnaryOpWithNoArgument(Span),
-    ExtraClosing(Span),
+pub enum Diagnostic<S: Parseable> {
+    TokenizationError(TokError<S>),
+    UnclosedList(Span<S>),
+    UnmatchedListClosing(Span<S>, Span<S>),
+    UnaryOpWithNoArgument(Span<S>),
+    ExtraClosing(Span<S>),
 }
 
-pub struct ParseResult {
-    pub roots: Vec<Sexpr>,
-    pub diagnostics: Vec<Diagnostic>,
+pub struct ParseResult<S: Parseable> {
+    pub roots: Vec<Sexpr<S>>,
+    pub diagnostics: Vec<Diagnostic<S>>,
 }
 
-impl Sexpr {
-    pub fn span(&self) -> &Span {
+impl<S: Parseable> Sexpr<S> {
+    pub fn span(&self) -> &Span<S> {
         match self {
             &Sexpr::List { ref span, .. } => span,
             &Sexpr::UnaryOperator { ref span, .. } => span,
-            &Sexpr::Number(_, ref span) |
             &Sexpr::String(_, ref span) |
-            &Sexpr::Ident(_, ref span) => span,
+            &Sexpr::Terminal(_, ref span) => span,
         }
     }
 
-    pub fn last_token(&self) -> &TokenInfo {
+    pub fn last_token(&self) -> &TokenInfo<S> {
         match self {
             &Sexpr::List { ref closing_token, .. } => closing_token,
             &Sexpr::UnaryOperator { ref child, .. } => child.last_token(),
-            &Sexpr::Number(ref token, _) |
             &Sexpr::String(ref token, _) |
-            &Sexpr::Ident(ref token, _) => token,
+            &Sexpr::Terminal(ref token, _) => token,
         }
     }
 
-    pub fn first_token(&self) -> &TokenInfo {
+    pub fn first_token(&self) -> &TokenInfo<S> {
         match self {
             &Sexpr::List { ref opening_token, .. } => opening_token,
             &Sexpr::UnaryOperator { ref op, .. } => op,
-            &Sexpr::Number(ref token, _) |
             &Sexpr::String(ref token, _) |
-            &Sexpr::Ident(ref token, _) => token,
+            &Sexpr::Terminal(ref token, _) => token,
         }
     }
 }
 
-fn find_newline(
-    t: &[u8],
-    pos: u32,
-    direction: i32
-) -> u32 {
+fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
     // We're searching backwards and we've hit the start of the buffer
     if pos == 0 && direction == -1 {
         return 0;
@@ -106,21 +98,18 @@ fn find_newline(
         _ => {}
     }
 
-    return find_newline(t, ((pos as i64) + (direction as i64)) as u32, direction);
+    return find_newline(t, ((pos as isize) + (direction as isize)) as usize, direction);
 }
 
-impl Span {
-    pub fn from_token(
-        token: &TokenInfo,
-        string: &StrTendril
-    ) -> Span {
-        let chars = token.string.chars().count() as u32;
-        let bytes = token.string.len() as u32;
+impl <S: Parseable> Span<S> {
+    pub fn from_token(token: &TokenInfo<S>, string: &S) -> Span<S> {
+        let chars = token.string.chars().count();
+        let bytes = token.string.len();
 
         let start_line_pos = find_newline(string.as_bytes(), token.byte_offset, -1);
         let end_line_pos = find_newline(string.as_bytes(), token.byte_offset, 1);
         assert!(end_line_pos >= start_line_pos);
-        let line = string.subtendril(start_line_pos, end_line_pos - start_line_pos);
+        let line = string.substring(start_line_pos, end_line_pos);
 
         Span {
             text: token.string.clone(),
@@ -135,23 +124,19 @@ impl Span {
         }
     }
 
-    pub fn from_spans(
-        start: &Span,
-        end: &Span,
-        string: &StrTendril
-    ) -> Span {
+    pub fn from_spans(start: &Span<S>, end: &Span<S>, string: &S) -> Span<S> {
         let (start, end) = if start.byte_start < end.byte_start {
             (start, end)
         } else {
             (end, start)
         };
 
-        let text = string.subtendril(start.byte_start, end.byte_end - start.byte_start);
+        let text = string.substring(start.byte_start, end.byte_end);
 
         let start_line_pos = find_newline(string.as_bytes(), start.byte_start, -1);
         let end_line_pos = find_newline(string.as_bytes(), end.byte_end, 1);
         assert!(end_line_pos >= start_line_pos);
-        let lines = string.subtendril(start_line_pos, end_line_pos - start_line_pos);
+        let lines = string.substring(start_line_pos, end_line_pos);
 
         Span {
             text: text,
@@ -168,11 +153,8 @@ impl Span {
     }
 }
 
-pub fn parse<I>(
-    string: &StrTendril,
-    mut tokens: I
-) -> ParseResult
-    where I: Iterator<Item = TokResult<TokenInfo>>
+pub fn parse<I, S: Parseable>(string: &S, mut tokens: I) -> ParseResult<S>
+    where I: Iterator<Item = TokResult<S, TokenInfo<S>>>
 {
 
     let mut diagnostics = vec![];
@@ -193,22 +175,19 @@ pub fn parse<I>(
                 let span = Span::from_token(&token, string);
                 scopestack.put(Sexpr::String(token, span));
             }
-            TokenType::Number => {
+            TokenType::Atom => {
                 let span = Span::from_token(&token, string);
-                scopestack.put(Sexpr::Number(token, span));
+                scopestack.put(Sexpr::Terminal(token, span));
             }
-            TokenType::Identifier => {
-                let span = Span::from_token(&token, string);
-                scopestack.put(Sexpr::Ident(token, span));
-            }
-            TokenType::UnaryOperator => {
-                scopestack.open_unary(token);
-            }
+            // TODO
+            //TokenType::UnaryOperator => {
+            //    scopestack.open_unary(token);
+            //}
             TokenType::Whitespace => { /* do nothing for now */ }
-            TokenType::ListOpening => {
+            TokenType::ListOpening(_n) => {
                 scopestack.open_list(token);
             }
-            TokenType::ListClosing => {
+            TokenType::ListClosing(_n) => {
                 scopestack.close(Some(token), &mut diagnostics);
             }
         }

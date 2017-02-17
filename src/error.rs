@@ -1,4 +1,5 @@
 use super::parse::Span;
+use super::Parseable;
 use std::fmt::Write;
 
 pub enum ErrorLevel {
@@ -19,10 +20,10 @@ impl ErrorLevel {
     }
 }
 
-pub fn format_error(
+pub fn format_error<S: Parseable>(
     message: &str,
     error_level: &ErrorLevel,
-    span: &Span,
+    span: &Span<S>,
     file: &str
 ) -> String {
     let mut out = String::new();
@@ -33,8 +34,8 @@ pub fn format_error(
              span.line_start,
              span.column_start)
         .unwrap();
-    let padding = base_10_length(span.line_end as usize + span.lines.lines().count());
-    for (i, line) in span.lines.lines().enumerate() {
+    let padding = base_10_length(span.line_end as usize + span.lines.as_ref().lines().count());
+    for (i, line) in span.lines.as_ref().lines().enumerate() {
         writeln!(&mut out,
                  "{x:pd$} | {st}",
                  pd = padding,
@@ -57,18 +58,12 @@ fn base_10_length(x: usize) -> usize {
 #[cfg(test)]
 mod test {
     use super::super::parse::{Sexpr, ParseResult, parse};
-    use super::super::token::{tokenize, TokenizationOptions};
+    use super::super::token::{tokenize};
     use super::{base_10_length, format_error};
-    use tendril::StrTendril;
 
-    fn parse_ok(string: &str) -> Vec<Sexpr> {
-        let input: StrTendril = string.into();
-        let to = TokenizationOptions::default();
-        let cto = to.compile().unwrap();
-
-        let tokens = tokenize(input.clone(), &cto);
-
-        let ParseResult { roots, diagnostics } = parse(&input, tokens);
+    fn parse_ok(string: &str) -> Vec<Sexpr<&str>> {
+        let tokens = tokenize(string);
+        let ParseResult { roots, diagnostics } = parse(&string, tokens);
 
         if !diagnostics.is_empty() {
             println!("{:?}", diagnostics);

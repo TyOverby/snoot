@@ -1,41 +1,41 @@
 use super::*;
 use super::super::token::TokenInfo;
-use tendril::StrTendril;
+use super::super::Parseable;
 
-enum ParseStackItem {
-    Global { children: Vec<Sexpr> },
+enum ParseStackItem<S: Parseable> {
+    Global { children: Vec<Sexpr<S>> },
     ListOpening {
-        opening: TokenInfo,
-        children: Vec<Sexpr>,
+        opening: TokenInfo<S>,
+        children: Vec<Sexpr<S>>,
     },
-    UnaryOperator { op: Option<TokenInfo> },
+    UnaryOperator { op: Option<TokenInfo<S>> },
 }
 
-pub struct ScopeStack {
-    stack: Vec<ParseStackItem>,
-    string: StrTendril,
+pub struct ScopeStack<S: Parseable> {
+    stack: Vec<ParseStackItem<S>>,
+    string: S,
 }
 
-impl ScopeStack {
-    pub fn new(string: StrTendril) -> ScopeStack {
+impl <S: Parseable> ScopeStack<S> {
+    pub fn new(string: S) -> ScopeStack<S> {
         ScopeStack {
             stack: vec![ParseStackItem::Global { children: vec![] }],
             string: string,
         }
     }
 
-    pub fn open_unary(&mut self, token: TokenInfo) {
+    pub fn open_unary(&mut self, token: TokenInfo<S>) {
         self.stack.push(ParseStackItem::UnaryOperator { op: Some(token) });
     }
 
-    pub fn open_list(&mut self, token: TokenInfo) {
+    pub fn open_list(&mut self, token: TokenInfo<S>) {
         self.stack.push(ParseStackItem::ListOpening {
             opening: token,
             children: vec![],
         });
     }
 
-    pub fn end(mut self, diagnostics: &mut Vec<Diagnostic>) -> Vec<Sexpr> {
+    pub fn end(mut self, diagnostics: &mut Vec<Diagnostic<S>>) -> Vec<Sexpr<S>> {
         while self.stack.len() != 1 {
             self.close(None, diagnostics);
         }
@@ -49,7 +49,7 @@ impl ScopeStack {
         }
     }
 
-    pub fn put(&mut self, expr: Sexpr) {
+    pub fn put(&mut self, expr: Sexpr<S>) {
         let recurse = match self.stack.last_mut().unwrap() {
             &mut ParseStackItem::Global { ref mut children } => {
                 children.push(expr);
@@ -81,7 +81,7 @@ impl ScopeStack {
         }
     }
 
-    pub fn close(&mut self, closed_by: Option<TokenInfo>, diagnostics: &mut Vec<Diagnostic>) {
+    pub fn close(&mut self, closed_by: Option<TokenInfo<S>>, diagnostics: &mut Vec<Diagnostic<S>>) {
         match (self.stack.pop().unwrap(), closed_by) {
             (g @ ParseStackItem::Global { .. }, Some(closed_by)) => {
                 self.stack.push(g);
