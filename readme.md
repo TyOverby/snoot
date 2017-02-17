@@ -2,13 +2,39 @@
 
 <img align="right" width="300px" src="./snoot.png" />
 
-Snoot is a highly-customizable s-expression parser made
-with a focus on a clean API, resiliancy, and pretty error formatting.
+"Parsing s-expressions is easy!" you say.
+
+Well yes, *but*, does your hypothetical s-expression parser
+
+* perform no copies on the source text while parsing?
+* come with an error-reporting and formatting mechanism?
+* keep parsing after encountering the first parse error?
+* have as cute of a name as "Snoot"?
+
+Ok, at the very least, the answer to the last of those is a definitive "no".
+
+## Zero Copy Parsing
 Parsing a `&'a str`, no problem, you'll get a `Sexpr<&'a str>` back!  No copying done!
 Rather that your tree nodes be owned?  Pass in a `String` and you'll get a `Sexpr<String>` out at the cost of some copies being made!
 Are you a greedy bastard and want owned types *and* zero-copy parsing?  Alloc yourself a `StrTendril` and you'll get an owned `Sexpr<StrTendril>`!
 
 Is this magic!?  Maybe!
+
+## Error Reporting
+You know how the rust compiler spits out beautiful and informative error messages?
+With Snoot, you can easily make error messages just like those!
+With one of the Span objects that you get from parsing, you can build error messages with
+embedded source without even needing to get your hands dirty.
+
+## Parsing Resiliency
+Do your homemade parsers run home crying after they encounter the first parse error?  Sad.
+Snoot keeps marching on in the face of hardships so that you can report as many errors
+to your users as possible.
+
+## Snoot
+Snoot.
+
+# Examples
 
 ## Parsing
 
