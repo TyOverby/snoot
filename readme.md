@@ -29,14 +29,10 @@ Do your homemade parsers run home crying after they encounter the first parse er
 Snoot keeps marching on in the face of hardships so that you can report as many errors
 to your users as possible.
 
-## Snoot
-Snoot.
-
 # Examples
 
 ## Parsing
 
-#### Example
 ```rust
 extern crate snoot;
 
