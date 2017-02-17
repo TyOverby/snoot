@@ -36,6 +36,42 @@ Snoot.
 
 # Examples
 
+## Error Formatting
+
+```rust
+extern crate snoot;
+
+const PROGRAM: &'static str = "
+(define map (lambda (xs f)
+            (if (nil xs) xs
+                (cons (f (car xs))
+                (map (cdr xs) f)))))
+";
+
+fn main() {
+    let snoot::ParseResult{roots, diagnostics} = snoot::simple_parse(PROGRAM);
+    assert!(diagnostics.is_empty());
+
+    // Report an error over the entire program
+    let span = roots[0].span();
+
+    let custom_error = snoot::error::format_error(
+        "this is the message", &snoot::error::ErrorLevel::Info, span, "filename.lisp");
+    println!("{}", custom_error);
+}
+```
+
+#### Output
+```
+info: this is the message
+ --> filename.lisp:2:1
+ 2 | 
+ 3 | (define map (lambda (xs f)
+ 4 |             (if (nil xs) xs
+ 5 |                 (cons (f (car xs))
+ 6 |                 (map (cdr xs) f)))))
+```
+
 ## Parsing
 
 #### Example
@@ -127,3 +163,5 @@ fn main() {
     }
 ]
 ```
+
+Did you know that there are more commits to this readme than there are to the entire rest of the project!

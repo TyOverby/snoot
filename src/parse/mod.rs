@@ -3,7 +3,7 @@ use super::Parseable;
 
 mod scopestack;
 pub mod test;
-//pub mod simplified_test;
+pub mod simplified_test;
 
 use self::scopestack::ScopeStack;
 

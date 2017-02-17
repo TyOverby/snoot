@@ -20,12 +20,7 @@ impl ErrorLevel {
     }
 }
 
-pub fn format_error<S: Parseable>(
-    message: &str,
-    error_level: &ErrorLevel,
-    span: &Span<S>,
-    file: &str
-) -> String {
+pub fn format_error<S: Parseable>(message: &str, error_level: &ErrorLevel, span: &Span<S>, file: &str) -> String {
     let mut out = String::new();
     writeln!(&mut out, "{}: {}", error_level.to_str(), message).unwrap();
     writeln!(&mut out,
@@ -58,7 +53,7 @@ fn base_10_length(x: usize) -> usize {
 #[cfg(test)]
 mod test {
     use super::super::parse::{Sexpr, ParseResult, parse};
-    use super::super::token::{tokenize};
+    use super::super::token::tokenize;
     use super::{base_10_length, format_error};
 
     fn parse_ok(string: &str) -> Vec<Sexpr<&str>> {
@@ -89,10 +84,13 @@ mod test {
             (map (cdr xs) f)))))
 "#;
         let trees = parse_ok(source);
-        let error = format_error("this is the message", &super::ErrorLevel::Info, trees[0].span(), "<anon>");
+        let error = format_error("this is the message",
+                                 &super::ErrorLevel::Info,
+                                 trees[0].span(),
+                                 "<anon>");
         println!("{}", error);
         assert_eq!(error.trim(),
-r#"info: this is the message
+                   r#"info: this is the message
  --> <anon>:1:1
 1 | (define map (lambda (xs f)
 2 |   (if (nil xs) xs
