@@ -4,10 +4,11 @@
 
 Snoot is a highly-customizable s-expression parser made
 with a focus on a clean API, resiliancy, and pretty error formatting.
-Parsing a `&'a str`, no problem, you'll get a `Sexpr<&'a>` back!  No copying done!
-Rather that your tree nodes be owned?  Pass in a `String` and you'll get a `Sexpr<String>` out!
-Best of both worlds?  Alloc yourself a `StrTendril` and you'll get an owned `Sexpr<StrTendril>` and
-there *still* won't be any copies!  Is this magic!?  Maybe!
+Parsing a `&'a str`, no problem, you'll get a `Sexpr<&'a str>` back!  No copying done!
+Rather that your tree nodes be owned?  Pass in a `String` and you'll get a `Sexpr<String>` out at the cost of some copies being made!
+Are you a greedy bastard and want owned types *and* zero-copy parsing?  Alloc yourself a `StrTendril` and you'll get an owned `Sexpr<StrTendril>`!
+
+Is this magic!?  Maybe!
 
 ## Parsing
 
