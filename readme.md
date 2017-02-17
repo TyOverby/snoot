@@ -2,9 +2,7 @@
 
 <img align="right" width="300px" src="./snoot.png" />
 
-"Parsing s-expressions is easy!" you say.
-
-Well yes, *but*, does your hypothetical s-expression parser
+"Parsing s-expressions is easy!" you say.  Well yes - but - does *your* hypothetical s-expression parser
 
 * perform no copies on the source text while parsing?
 * come with an error-reporting and formatting mechanism?
