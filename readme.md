@@ -36,6 +36,9 @@ to your users as possible.
 ```rust
 extern crate snoot;
 
+use snoot::simple_parse;
+use snoot::error::{ErrorBuilder, ErrorLevel};
+
 const PROGRAM: &'static str = "
 (define map (lambda (xs f)
             (if (nil xs) xs
@@ -44,27 +47,29 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::ParseResult{roots, diagnostics} = snoot::simple_parse(PROGRAM);
+    let snoot::ParseResult{roots, diagnostics} = simple_parse(PROGRAM);
     assert!(diagnostics.is_empty());
 
     // Report an error over the entire program
     let span = roots[0].span();
 
-    let custom_error = snoot::error::format_error(
-        "this is the message", &snoot::error::ErrorLevel::Info, span, "filename.lisp");
-    println!("{}", custom_error);
+    let error = ErrorBuilder::new("this is the message", span.clone())
+        .with_file_name("filename.lisp")
+        .with_error_level(ErrorLevel::Error)
+        .build();
+
+    println!("{}", error);
 }
 ```
 
 #### Output
 ```
-info: this is the message
+error: this is the message
  --> filename.lisp:2:1
- 2 | 
- 3 | (define map (lambda (xs f)
- 4 |             (if (nil xs) xs
- 5 |                 (cons (f (car xs))
- 6 |                 (map (cdr xs) f)))))
+2 | (define map (lambda (xs f)
+3 |             (if (nil xs) xs
+4 |                 (cons (f (car xs))
+5 |                 (map (cdr xs) f)))))
 ```
 
 ## Parsing

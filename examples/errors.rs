@@ -1,5 +1,8 @@
 extern crate snoot;
 
+use snoot::simple_parse;
+use snoot::error::{ErrorBuilder, ErrorLevel};
+
 const PROGRAM: &'static str = "
 (define map (lambda (xs f)
             (if (nil xs) xs
@@ -8,13 +11,16 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::ParseResult{roots, diagnostics} = snoot::simple_parse(PROGRAM);
+    let snoot::ParseResult{roots, diagnostics} = simple_parse(PROGRAM);
     assert!(diagnostics.is_empty());
 
     // Report an error over the entire program
     let span = roots[0].span();
 
-    let custom_error = snoot::error::format_error(
-        "this is the message", &snoot::error::ErrorLevel::Info, span, "filename.lisp");
-    println!("{}", custom_error);
+    let error = ErrorBuilder::new("this is the message", span.clone())
+        .with_file_name("filename.lisp")
+        .with_error_level(ErrorLevel::Error)
+        .build();
+
+    println!("{}", error);
 }

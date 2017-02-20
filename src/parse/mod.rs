@@ -85,8 +85,13 @@ impl<S: Parseable> Sexpr<S> {
 fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
     // We're searching backwards and we've hit the start of the buffer
     if pos == 0 && direction == -1 {
-        return 0;
+        if t[0] == b'\n' {
+            return 1
+        } else {
+            return 0;
+        }
     }
+
     // We're searching forwards and we've hit the end of the buffer
     if pos as usize == t.len() && direction == 1 {
         return pos;
