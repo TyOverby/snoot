@@ -8,8 +8,10 @@ pub mod error;
 
 pub use parse::ParseResult;
 
+static EMPTY_ARRAY: &'static [&'static str] = &[];
+
 pub fn simple_parse<P: Parseable>(string: P) -> parse::ParseResult<P> {
-    let tokens = token::tokenize(string.clone());
+    let tokens = token::tokenize(string.clone(), EMPTY_ARRAY);
     parse::parse(&string, tokens)
 }
 

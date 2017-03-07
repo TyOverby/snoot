@@ -3,7 +3,7 @@
 use super::*;
 
 pub fn test_ok(input: &str, expected: Vec<Sexpr<&'static str>>) {
-    let tokens = tokenize(input);
+    let tokens = tokenize(input, &[]);
 
     let ParseResult { roots, diagnostics } = parse(&input, tokens);
     if !diagnostics.is_empty() {

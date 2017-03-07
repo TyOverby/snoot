@@ -48,13 +48,13 @@ impl <'a> From<Sexpr<&'a str>> for SimpleSexpr {
 
 fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>) {
     let (roots, diagnostics) = {
-        let tokens = tokenize(string);
+        let tokens = tokenize(string, &[]);
         let ParseResult { roots, diagnostics } = parse(&string, tokens);
         (roots, diagnostics)
     };
     {
         let string:StrTendril = string.into();
-        let tokens = tokenize::<StrTendril>(string.clone());
+        let tokens = tokenize::<StrTendril>(string.clone(), &[]);
         let ParseResult { roots: _, diagnostics: _ } = parse(&string, tokens);
     }
 

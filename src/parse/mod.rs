@@ -103,6 +103,7 @@ impl<S: Parseable> Sexpr<S> {
             &Sexpr::Terminal(_, _) => SexprKind::Terminal,
         }
     }
+
     pub fn span(&self) -> &Span<S> {
         match self {
             &Sexpr::List { ref span, .. } => span,
