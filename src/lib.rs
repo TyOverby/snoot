@@ -16,6 +16,10 @@ pub fn simple_parse<P: Parseable>(string: P) -> parse::ParseResult<P> {
 pub trait Parseable: Clone + AsRef<str> + ::std::fmt::Debug {
     fn substring(&self, start: usize, end: usize) -> Self;
 
+    fn empty() -> Self;
+
+    fn substr(&self, start: usize, end: usize) -> &str;
+
     fn len(&self) -> usize {
         self.as_ref().len()
     }
@@ -37,16 +41,22 @@ impl <'a> Parseable for &'a str {
     fn substring(&self, start: usize, end: usize) -> Self {
         &self[start .. end]
     }
-}
 
-impl <'a> Parseable for String {
-    fn substring(&self, start: usize, end: usize) -> Self {
-        (&self[start .. end]).into()
+    fn empty() -> Self { "" }
+
+    fn substr(&self, start: usize, end: usize) -> &str {
+        &self[start .. end]
     }
 }
 
 impl <'a> Parseable for tendril::StrTendril {
     fn substring(&self, start: usize, end: usize) -> Self {
-        self.subtendril(start as u32, (start + end) as u32)
+        self.subtendril(start as u32, (end - start) as u32)
+    }
+
+    fn empty() -> Self { "".into() }
+
+    fn substr(&self, start:usize, end: usize) -> &str {
+        &(&*self)[start .. end]
     }
 }

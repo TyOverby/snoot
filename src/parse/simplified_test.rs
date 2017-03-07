@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use tendril::StrTendril;
+
 use super::*;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -45,9 +47,17 @@ impl <'a> From<Sexpr<&'a str>> for SimpleSexpr {
 }
 
 fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>) {
-    let tokens = tokenize(string);
+    let (roots, diagnostics) = {
+        let tokens = tokenize(string);
+        let ParseResult { roots, diagnostics } = parse(&string, tokens);
+        (roots, diagnostics)
+    };
+    {
+        let string:StrTendril = string.into();
+        let tokens = tokenize::<StrTendril>(string.clone());
+        let ParseResult { roots: _, diagnostics: _ } = parse(&string, tokens);
+    }
 
-    let ParseResult { roots, diagnostics } = parse(&string, tokens);
     if !diagnostics.is_empty() {
         println!("{:?}", diagnostics);
         assert!(diagnostics.is_empty());
@@ -117,4 +127,23 @@ fn multiple_top_level_lists() {
                              entire: "()".into(),
                              children: vec![],
                          }]);
+
+}
+
+#[test]
+fn prop_regression() {
+    parse_simple_ok("{a: 5 b : 10}", vec![
+        SimpleSexpr::List {
+            opening: "{".into(),
+            closing: "}".into(),
+            entire: "{a: 5 b : 10}".into(),
+            children: vec![
+                SimpleSexpr::Ident("a:".into()),
+                SimpleSexpr::Ident("5".into()),
+                SimpleSexpr::Ident("b".into()),
+                SimpleSexpr::Ident(":".into()),
+                SimpleSexpr::Ident("10".into()),
+            ],
+        }
+    ])
 }

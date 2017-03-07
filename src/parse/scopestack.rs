@@ -74,8 +74,7 @@ impl <S: Parseable> ScopeStack<S> {
             // TODO: Check to see if opening matches close
             (ParseStackItem::ListOpening { children, opening }, Some(closed_by)) => {
                 let span = Span::from_spans(&Span::from_token(&opening, &self.string),
-                                            &Span::from_token(&closed_by, &self.string),
-                                            &self.string);
+                                            &Span::from_token(&closed_by, &self.string));
                 let list_sexpr = Sexpr::List {
                     opening_token: opening,
                     closing_token: closed_by,
@@ -96,8 +95,7 @@ impl <S: Parseable> ScopeStack<S> {
                 };
 
                 let span = Span::from_spans(&Span::from_token(&opening, &self.string),
-                                            &Span::from_token(&closed_token, &self.string),
-                                            &self.string);
+                                            &Span::from_token(&closed_token, &self.string));
 
                 let list_sexpr = Sexpr::List {
                     opening_token: opening,

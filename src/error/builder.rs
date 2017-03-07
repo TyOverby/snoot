@@ -1,4 +1,4 @@
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Display, Formatter, Debug};
 
 use Parseable;
 use parse::Span;
@@ -91,6 +91,12 @@ impl<S: Parseable> ErrorAnnotation<S> {
             message: message,
             span: span,
         }
+    }
+}
+
+impl <S: Parseable> Debug for Error<S> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

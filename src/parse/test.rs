@@ -24,6 +24,7 @@ fn single_ident() {
                                   string: "foo",
                               },
                               Span {
+                                  full_text: "foo",
                                   text: "foo",
                                   lines: "foo",
 
@@ -48,6 +49,7 @@ fn two_idents() {
                                   string: "foo",
                               },
                               Span {
+                                  full_text: "foo bar",
                                   text: "foo",
                                   lines: "foo bar",
 
@@ -67,6 +69,7 @@ fn two_idents() {
                                   string: "bar",
                               },
                               Span {
+                                  full_text: "foo bar",
                                   text: "bar",
                                   lines: "foo bar",
 
@@ -101,6 +104,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         full_text: "()",
                          text: "()",
                          lines: "()",
 
@@ -132,6 +136,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         full_text: "{}",
                          text: "{}",
                          lines: "{}",
 
@@ -163,6 +168,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         full_text: "[]",
                          text: "[]",
                          lines: "[]",
 

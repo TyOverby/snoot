@@ -1,4 +1,5 @@
 use super::Parseable;
+use super::parse::Span;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TokenType {
@@ -13,8 +14,7 @@ pub type TokResult<S, OK> = Result<OK, TokError<S>>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokError<S: Parseable> {
-    UnclosedString(S),
-    NoMatch(S),
+    UnclosedString(Span<S>)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

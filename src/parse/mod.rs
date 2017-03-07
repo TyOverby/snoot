@@ -1,5 +1,6 @@
 use super::token::*;
 use super::Parseable;
+use super::error::{Error, ErrorBuilder, ErrorLevel};
 
 mod scopestack;
 pub mod test;
@@ -9,6 +10,7 @@ use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Span<S: Parseable> {
+    pub full_text: S,
     pub text: S,
     pub lines: S,
 
@@ -22,6 +24,11 @@ pub struct Span<S: Parseable> {
 }
 
 #[derive(Eq, PartialEq, Debug)]
+pub enum SexprKind {
+    List, UnaryOperator, Terminal, String
+}
+
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Sexpr<S: Parseable> {
     List {
         opening_token: TokenInfo<S>,
@@ -44,7 +51,6 @@ pub enum Diagnostic<S: Parseable> {
     TokenizationError(TokError<S>),
     UnclosedList(Span<S>),
     UnmatchedListClosing(Span<S>, Span<S>),
-    UnaryOpWithNoArgument(Span<S>),
     ExtraClosing(Span<S>),
 }
 
@@ -53,7 +59,50 @@ pub struct ParseResult<S: Parseable> {
     pub diagnostics: Vec<Diagnostic<S>>,
 }
 
+impl <S: Parseable> Diagnostic<S> {
+    pub fn into_error(self, filename: Option<String>) -> Error<S> {
+        match self {
+            Diagnostic::TokenizationError(TokError::UnclosedString(_span)) => {
+                unreachable!();
+            }
+            Diagnostic::ExtraClosing(span) => {
+                let builder = ErrorBuilder::new("extra list closing", span);
+                let builder = if let Some(f) = filename {
+                    builder.with_file_name(f)
+                } else { builder };
+
+                builder.with_error_level(ErrorLevel::Error).build()
+            }
+            Diagnostic::UnmatchedListClosing(start, end) => {
+                let span = Span::from_spans(&start, &end);
+                let builder = ErrorBuilder::new("unmatched list closing", span);
+                let builder = if let Some(f) = filename {
+                    builder.with_file_name(f)
+                } else { builder };
+
+                builder.with_error_level(ErrorLevel::Error).build()
+            }
+            Diagnostic::UnclosedList(span) => {
+                let builder = ErrorBuilder::new("unclosed list", span);
+                let builder = if let Some(f) = filename {
+                    builder.with_file_name(f)
+                } else { builder };
+
+                builder.with_error_level(ErrorLevel::Error).build()
+            }
+        }
+    }
+}
+
 impl<S: Parseable> Sexpr<S> {
+    pub fn kind(&self) -> SexprKind {
+        match self {
+            &Sexpr::List {..} => SexprKind::List,
+            &Sexpr::UnaryOperator { .. } => SexprKind::UnaryOperator,
+            &Sexpr::String(_, _) => SexprKind::String,
+            &Sexpr::Terminal(_, _) => SexprKind::Terminal,
+        }
+    }
     pub fn span(&self) -> &Span<S> {
         match self {
             &Sexpr::List { ref span, .. } => span,
@@ -107,6 +156,21 @@ fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
 }
 
 impl <S: Parseable> Span<S> {
+    pub fn empty() -> Span<S> {
+        Span {
+            full_text: S::empty(),
+            text: S::empty(),
+            lines: S::empty(),
+
+            line_start: 0,
+            column_start: 0,
+            byte_start: 0,
+
+            line_end: 0,
+            column_end: 0,
+            byte_end: 0,
+        }
+    }
     pub fn from_token(token: &TokenInfo<S>, string: &S) -> Span<S> {
         let chars = token.string.chars().count();
         let bytes = token.string.len();
@@ -117,6 +181,7 @@ impl <S: Parseable> Span<S> {
         let line = string.substring(start_line_pos, end_line_pos);
 
         Span {
+            full_text: string.clone(),
             text: token.string.clone(),
             lines: line,
             line_start: token.line_number,
@@ -129,7 +194,8 @@ impl <S: Parseable> Span<S> {
         }
     }
 
-    pub fn from_spans(start: &Span<S>, end: &Span<S>, string: &S) -> Span<S> {
+    pub fn from_spans(start: &Span<S>, end: &Span<S>) -> Span<S> {
+        let string = start.full_text.clone();
         let (start, end) = if start.byte_start < end.byte_start {
             (start, end)
         } else {
@@ -144,6 +210,7 @@ impl <S: Parseable> Span<S> {
         let lines = string.substring(start_line_pos, end_line_pos);
 
         Span {
+            full_text: start.full_text.clone(),
             text: text,
             lines: lines,
             line_start: start.line_start,
