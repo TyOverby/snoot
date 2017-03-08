@@ -7,7 +7,7 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::ParseResult{roots, diagnostics} = snoot::simple_parse(PROGRAM);
+    let snoot::ParseResult{roots, diagnostics} = snoot::simple_parse(PROGRAM, &[]);
     assert!(diagnostics.is_empty());
     println!("{:#?}", roots);
 }

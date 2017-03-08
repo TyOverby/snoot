@@ -232,7 +232,7 @@ fn test_basic_error() {
             (map (cdr xs) f)))))
 "#;
 
-    let ::parse::ParseResult{roots, diagnostics} = ::simple_parse(source);
+    let ::parse::ParseResult{roots, diagnostics} = ::simple_parse(source, &[]);
     assert!(diagnostics.is_empty());
 
     let error = ErrorBuilder::new("this is the message", roots[0].span().clone())

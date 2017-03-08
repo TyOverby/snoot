@@ -10,8 +10,8 @@ pub use parse::ParseResult;
 
 static EMPTY_ARRAY: &'static [&'static str] = &[];
 
-pub fn simple_parse<P: Parseable>(string: P) -> parse::ParseResult<P> {
-    let tokens = token::tokenize(string.clone(), EMPTY_ARRAY);
+pub fn simple_parse<'a, P: Parseable>(string: P, splitters: &'a[&'a str]) -> parse::ParseResult<P> {
+    let tokens = token::tokenize(string.clone(), splitters);
     parse::parse(&string, tokens)
 }
 
