@@ -1,36 +1,36 @@
 use super::*;
 use super::super::token::TokenInfo;
-use super::super::Parseable;
+use tendril::StrTendril;
 
-enum ParseStackItem<S: Parseable> {
-    Global { children: Vec<Sexpr<S>> },
+enum ParseStackItem {
+    Global { children: Vec<Sexpr> },
     ListOpening {
-        opening: TokenInfo<S>,
-        children: Vec<Sexpr<S>>,
+        opening: TokenInfo,
+        children: Vec<Sexpr>,
     },
 }
 
-pub struct ScopeStack<S: Parseable> {
-    stack: Vec<ParseStackItem<S>>,
-    string: S,
+pub struct ScopeStack {
+    stack: Vec<ParseStackItem>,
+    string: StrTendril,
 }
 
-impl <S: Parseable> ScopeStack<S> {
-    pub fn new(string: S) -> ScopeStack<S> {
+impl ScopeStack {
+    pub fn new(string: StrTendril) -> ScopeStack {
         ScopeStack {
             stack: vec![ParseStackItem::Global { children: vec![] }],
             string: string,
         }
     }
 
-    pub fn open_list(&mut self, token: TokenInfo<S>) {
+    pub fn open_list(&mut self, token: TokenInfo) {
         self.stack.push(ParseStackItem::ListOpening {
-            opening: token,
-            children: vec![],
-        });
+                            opening: token,
+                            children: vec![],
+                        });
     }
 
-    pub fn end(mut self, diagnostics: &mut Vec<Diagnostic<S>>) -> Vec<Sexpr<S>> {
+    pub fn end(mut self, diagnostics: &mut Vec<Diagnostic>) -> Vec<Sexpr> {
         while self.stack.len() != 1 {
             self.close(None, diagnostics);
         }
@@ -44,7 +44,7 @@ impl <S: Parseable> ScopeStack<S> {
         }
     }
 
-    pub fn put(&mut self, expr: Sexpr<S>) {
+    pub fn put(&mut self, expr: Sexpr) {
         let recurse = match self.stack.last_mut().unwrap() {
             &mut ParseStackItem::Global { ref mut children } => {
                 children.push(expr);
@@ -65,11 +65,12 @@ impl <S: Parseable> ScopeStack<S> {
         }
     }
 
-    pub fn close(&mut self, closed_by: Option<TokenInfo<S>>, diagnostics: &mut Vec<Diagnostic<S>>) {
+    pub fn close(&mut self, closed_by: Option<TokenInfo>, diagnostics: &mut Vec<Diagnostic>) {
         match (self.stack.pop().unwrap(), closed_by) {
             (g @ ParseStackItem::Global { .. }, Some(closed_by)) => {
                 self.stack.push(g);
-                diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by, &self.string)));
+                diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by,
+                                                                           &self.string)));
             }
             // TODO: Check to see if opening matches close
             (ParseStackItem::ListOpening { children, opening }, Some(closed_by)) => {
@@ -110,3 +111,4 @@ impl <S: Parseable> ScopeStack<S> {
         }
     }
 }
+

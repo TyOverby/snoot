@@ -1,6 +1,6 @@
 use super::token::*;
-use super::Parseable;
 use super::error::{Error, ErrorBuilder, ErrorLevel};
+use tendril::StrTendril;
 
 mod scopestack;
 pub mod test;
@@ -9,10 +9,10 @@ pub mod simplified_test;
 use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct Span<S: Parseable> {
-    pub full_text: S,
-    pub text: S,
-    pub lines: S,
+pub struct Span {
+    pub full_text: StrTendril,
+    pub text: StrTendril,
+    pub lines: StrTendril,
 
     pub line_start: usize,
     pub column_start: usize,
@@ -23,50 +23,50 @@ pub struct Span<S: Parseable> {
     pub byte_end: usize,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum SexprKind {
     List, UnaryOperator, Terminal, String
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub enum Sexpr<S: Parseable> {
+pub enum Sexpr {
     List {
-        opening_token: TokenInfo<S>,
-        closing_token: TokenInfo<S>,
+        opening_token: TokenInfo,
+        closing_token: TokenInfo,
 
-        children: Vec<Sexpr<S>>,
-        span: Span<S>,
+        children: Vec<Sexpr>,
+        span: Span,
     },
     UnaryOperator {
-        op: TokenInfo<S>,
-        child: Box<Sexpr<S>>,
-        span: Span<S>,
+        op: TokenInfo,
+        child: Box<Sexpr>,
+        span: Span,
     },
-    Terminal(TokenInfo<S>, Span<S>),
-    String(TokenInfo<S>, Span<S>),
+    Terminal(TokenInfo, Span),
+    String(TokenInfo, Span),
 }
 
 #[derive(Debug)]
-pub enum Diagnostic<S: Parseable> {
-    TokenizationError(TokError<S>),
-    UnclosedList(Span<S>),
-    UnmatchedListClosing(Span<S>, Span<S>),
-    ExtraClosing(Span<S>),
+pub enum Diagnostic {
+    TokenizationError(TokError),
+    UnclosedList(Span),
+    UnmatchedListClosing(Span, Span),
+    ExtraClosing(Span),
 }
 
-pub struct ParseResult<S: Parseable> {
-    pub roots: Vec<Sexpr<S>>,
-    pub diagnostics: Vec<Diagnostic<S>>,
+pub struct ParseResult {
+    pub roots: Vec<Sexpr>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
-impl <S: Parseable> Diagnostic<S> {
-    pub fn into_error(self, filename: Option<String>) -> Error<S> {
+impl Diagnostic {
+    pub fn into_error(self, filename: Option<String>) -> Error {
         match self {
             Diagnostic::TokenizationError(TokError::UnclosedString(_span)) => {
                 unreachable!();
             }
             Diagnostic::ExtraClosing(span) => {
-                let builder = ErrorBuilder::new("extra list closing", span);
+                let builder = ErrorBuilder::new("extra list closing", &span);
                 let builder = if let Some(f) = filename {
                     builder.with_file_name(f)
                 } else { builder };
@@ -75,7 +75,7 @@ impl <S: Parseable> Diagnostic<S> {
             }
             Diagnostic::UnmatchedListClosing(start, end) => {
                 let span = Span::from_spans(&start, &end);
-                let builder = ErrorBuilder::new("unmatched list closing", span);
+                let builder = ErrorBuilder::new("unmatched list closing", &span);
                 let builder = if let Some(f) = filename {
                     builder.with_file_name(f)
                 } else { builder };
@@ -83,7 +83,7 @@ impl <S: Parseable> Diagnostic<S> {
                 builder.with_error_level(ErrorLevel::Error).build()
             }
             Diagnostic::UnclosedList(span) => {
-                let builder = ErrorBuilder::new("unclosed list", span);
+                let builder = ErrorBuilder::new("unclosed list", &span);
                 let builder = if let Some(f) = filename {
                     builder.with_file_name(f)
                 } else { builder };
@@ -94,7 +94,7 @@ impl <S: Parseable> Diagnostic<S> {
     }
 }
 
-impl<S: Parseable> Sexpr<S> {
+impl Sexpr {
     pub fn kind(&self) -> SexprKind {
         match self {
             &Sexpr::List {..} => SexprKind::List,
@@ -104,7 +104,7 @@ impl<S: Parseable> Sexpr<S> {
         }
     }
 
-    pub fn span(&self) -> &Span<S> {
+    pub fn span(&self) -> &Span {
         match self {
             &Sexpr::List { ref span, .. } => span,
             &Sexpr::UnaryOperator { ref span, .. } => span,
@@ -113,7 +113,7 @@ impl<S: Parseable> Sexpr<S> {
         }
     }
 
-    pub fn last_token(&self) -> &TokenInfo<S> {
+    pub fn last_token(&self) -> &TokenInfo {
         match self {
             &Sexpr::List { ref closing_token, .. } => closing_token,
             &Sexpr::UnaryOperator { ref child, .. } => child.last_token(),
@@ -122,7 +122,7 @@ impl<S: Parseable> Sexpr<S> {
         }
     }
 
-    pub fn first_token(&self) -> &TokenInfo<S> {
+    pub fn first_token(&self) -> &TokenInfo {
         match self {
             &Sexpr::List { ref opening_token, .. } => opening_token,
             &Sexpr::UnaryOperator { ref op, .. } => op,
@@ -156,12 +156,12 @@ fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
     return find_newline(t, ((pos as isize) + (direction as isize)) as usize, direction);
 }
 
-impl <S: Parseable> Span<S> {
-    pub fn empty() -> Span<S> {
+impl Span {
+    pub fn empty() -> Span {
         Span {
-            full_text: S::empty(),
-            text: S::empty(),
-            lines: S::empty(),
+            full_text: "".into(),
+            text: "".into(),
+            lines: "".into(),
 
             line_start: 0,
             column_start: 0,
@@ -172,14 +172,14 @@ impl <S: Parseable> Span<S> {
             byte_end: 0,
         }
     }
-    pub fn from_token(token: &TokenInfo<S>, string: &S) -> Span<S> {
+    pub fn from_token(token: &TokenInfo, string: &StrTendril) -> Span {
         let chars = token.string.chars().count();
         let bytes = token.string.len();
 
         let start_line_pos = find_newline(string.as_bytes(), token.byte_offset, -1);
         let end_line_pos = find_newline(string.as_bytes(), token.byte_offset, 1);
         assert!(end_line_pos >= start_line_pos);
-        let line = string.substring(start_line_pos, end_line_pos);
+        let line = string.subtendril(start_line_pos as u32, (end_line_pos - start_line_pos) as u32);
 
         Span {
             full_text: string.clone(),
@@ -195,7 +195,7 @@ impl <S: Parseable> Span<S> {
         }
     }
 
-    pub fn from_spans(start: &Span<S>, end: &Span<S>) -> Span<S> {
+    pub fn from_spans(start: &Span, end: &Span) -> Span {
         let string = start.full_text.clone();
         let (start, end) = if start.byte_start < end.byte_start {
             (start, end)
@@ -203,12 +203,12 @@ impl <S: Parseable> Span<S> {
             (end, start)
         };
 
-        let text = string.substring(start.byte_start, end.byte_end);
+        let text = string.subtendril(start.byte_start as u32, (end.byte_end - start.byte_start) as u32);
 
         let start_line_pos = find_newline(string.as_bytes(), start.byte_start, -1);
         let end_line_pos = find_newline(string.as_bytes(), end.byte_end, 1);
         assert!(end_line_pos >= start_line_pos);
-        let lines = string.substring(start_line_pos, end_line_pos);
+        let lines = string.subtendril(start_line_pos as u32, (end_line_pos - start_line_pos) as u32);
 
         Span {
             full_text: start.full_text.clone(),
@@ -226,8 +226,8 @@ impl <S: Parseable> Span<S> {
     }
 }
 
-pub fn parse<I, S: Parseable>(string: &S, mut tokens: I) -> ParseResult<S>
-    where I: Iterator<Item = TokResult<S, TokenInfo<S>>>
+pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
+    where I: Iterator<Item = TokResult<TokenInfo>>
 {
 
     let mut diagnostics = vec![];

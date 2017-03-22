@@ -17,7 +17,7 @@ fn main() {
     // Report an error over the entire program
     let span = roots[0].span();
 
-    let error = ErrorBuilder::new("this is the message", span.clone())
+    let error = ErrorBuilder::new("this is the message", span)
         .with_file_name("filename.lisp")
         .with_error_level(ErrorLevel::Error)
         .build();

@@ -21,8 +21,8 @@ enum SimpleSexpr {
     Ident(String),
 }
 
-impl <'a> From<Sexpr<&'a str>> for SimpleSexpr {
-    fn from(sexpr: Sexpr<&'a str>) -> SimpleSexpr {
+impl <'a> From<Sexpr> for SimpleSexpr {
+    fn from(sexpr: Sexpr) -> SimpleSexpr {
         match sexpr {
             Sexpr::List { opening_token, closing_token, children, span } => {
                 SimpleSexpr::List {
@@ -47,16 +47,15 @@ impl <'a> From<Sexpr<&'a str>> for SimpleSexpr {
 }
 
 fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>) {
+    parse_simple_ok_split(string, expected, &[]);
+}
+fn parse_simple_ok_split(string: &str, expected: Vec<SimpleSexpr>, splits: &[&str]) {
+    let string: StrTendril = string.into();
     let (roots, diagnostics) = {
-        let tokens = tokenize(string, &[]);
+        let tokens = tokenize(string.clone(), splits);
         let ParseResult { roots, diagnostics } = parse(&string, tokens);
         (roots, diagnostics)
     };
-    {
-        let string:StrTendril = string.into();
-        let tokens = tokenize::<StrTendril>(string.clone(), &[]);
-        let ParseResult { roots: _, diagnostics: _ } = parse(&string, tokens);
-    }
 
     if !diagnostics.is_empty() {
         println!("{:?}", diagnostics);
@@ -145,5 +144,21 @@ fn prop_regression() {
                 SimpleSexpr::Ident("10".into()),
             ],
         }
-    ])
+    ]);
+
+    parse_simple_ok_split("{a: 5 b : 10}", vec![
+        SimpleSexpr::List {
+            opening: "{".into(),
+            closing: "}".into(),
+            entire: "{a: 5 b : 10}".into(),
+            children: vec![
+                SimpleSexpr::Ident("a".into()),
+                SimpleSexpr::Ident(":".into()),
+                SimpleSexpr::Ident("5".into()),
+                SimpleSexpr::Ident("b".into()),
+                SimpleSexpr::Ident(":".into()),
+                SimpleSexpr::Ident("10".into()),
+            ],
+        }
+    ], &[":"]);
 }

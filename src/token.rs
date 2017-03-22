@@ -1,5 +1,5 @@
-use super::Parseable;
 use super::parse::Span;
+use tendril::StrTendril;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TokenType {
@@ -10,34 +10,34 @@ pub enum TokenType {
     Atom,
 }
 
-pub type TokResult<S, OK> = Result<OK, TokError<S>>;
+pub type TokResult<OK> = Result<OK, TokError>;
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum TokError<S: Parseable> {
-    UnclosedString(Span<S>),
+pub enum TokError {
+    UnclosedString(Span),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TokenInfo<S: Parseable> {
+pub struct TokenInfo {
     pub line_number: usize,
     pub column_number: usize,
     pub byte_offset: usize,
     pub typ: TokenType,
-    pub string: S,
+    pub string: StrTendril,
 }
 
-pub struct TokenIterator<'a, S: Parseable> {
+pub struct TokenIterator<'a> {
     splitters: &'a [&'a str],
-    remaining: S,
+    remaining: StrTendril,
     line_number: usize,
     column_number: usize,
     byte_offset: usize,
 }
 
-impl<'a, S: Parseable> Iterator for TokenIterator<'a, S> {
-    type Item = TokResult<S, TokenInfo<S>>;
+impl<'a> Iterator for TokenIterator<'a> {
+    type Item = TokResult<TokenInfo>;
 
-    fn next(&mut self) -> Option<TokResult<S, TokenInfo<S>>> {
+    fn next(&mut self) -> Option<TokResult<TokenInfo>> {
         match next_token(&self.remaining, self.splitters) {
             None => None,
             Some(Err(e)) => Some(Err(e)),
@@ -63,7 +63,9 @@ impl<'a, S: Parseable> Iterator for TokenIterator<'a, S> {
                 let bytes_consumed = s.len();
                 self.byte_offset += bytes_consumed;
 
-                self.remaining = self.remaining.drop_front(bytes_consumed);
+                // TODO: is this wrong?
+                let bytes_consumed = bytes_consumed as u32;
+                self.remaining = self.remaining.subtendril(bytes_consumed, self.remaining.len32() - bytes_consumed);
 
                 r
             }
@@ -71,9 +73,9 @@ impl<'a, S: Parseable> Iterator for TokenIterator<'a, S> {
     }
 }
 
-fn next_token<S: Parseable>(string: &S,
+fn next_token(string: &StrTendril,
                             splitters: &[&str])
-                            -> Option<TokResult<S, (TokenType, S)>> {
+                            -> Option<TokResult<(TokenType, StrTendril)>> {
     fn idx_until<F>(s: &str, f: F) -> Option<usize>
         where F: Fn(char) -> bool
     {
@@ -91,15 +93,15 @@ fn next_token<S: Parseable>(string: &S,
     let next = match first {
         c if c.is_whitespace() => {
             let last_idx = idx_until(string.as_ref(), char::is_whitespace).unwrap();
-            Some(Ok((TokenType::Whitespace, string.substring(0, last_idx))))
+            Some(Ok((TokenType::Whitespace, string.subtendril(0, last_idx as u32))))
         }
 
-        '(' => Some(Ok((TokenType::ListOpening(0), string.substring(0, 1)))),
-        '{' => Some(Ok((TokenType::ListOpening(1), string.substring(0, 1)))),
-        '[' => Some(Ok((TokenType::ListOpening(2), string.substring(0, 1)))),
-        ')' => Some(Ok((TokenType::ListClosing(0), string.substring(0, 1)))),
-        '}' => Some(Ok((TokenType::ListClosing(1), string.substring(0, 1)))),
-        ']' => Some(Ok((TokenType::ListClosing(2), string.substring(0, 1)))),
+        '(' => Some(Ok((TokenType::ListOpening(0), string.subtendril(0, 1)))),
+        '{' => Some(Ok((TokenType::ListOpening(1), string.subtendril(0, 1)))),
+        '[' => Some(Ok((TokenType::ListOpening(2), string.subtendril(0, 1)))),
+        ')' => Some(Ok((TokenType::ListClosing(0), string.subtendril(0, 1)))),
+        '}' => Some(Ok((TokenType::ListClosing(1), string.subtendril(0, 1)))),
+        ']' => Some(Ok((TokenType::ListClosing(2), string.subtendril(0, 1)))),
         _ => {
             let last_idx = idx_until(string.as_ref(), |c| match c {
                     '(' | '{' | '[' | ')' | '}' | ']' => false,
@@ -107,12 +109,12 @@ fn next_token<S: Parseable>(string: &S,
                     _ => true,
                 })
                 .unwrap();
-            let mut substr = string.substring(0, last_idx);
+            let mut substr = string.subtendril(0, last_idx as u32);
             let mut lowest = None;
             for splitter in splitters {
                 lowest = match (lowest, substr.as_ref().find(splitter)) {
                     (_, Some(0)) => {
-                        substr = string.substring(0, splitter.len());
+                        substr = string.subtendril(0, splitter.len() as u32);
                         lowest = None;
                         break;
                     }
@@ -124,7 +126,7 @@ fn next_token<S: Parseable>(string: &S,
             }
 
             if let Some(new_low) = lowest {
-                substr = string.substring(0, new_low);
+                substr = string.subtendril(0, new_low as u32);
             }
 
             Some(Ok((TokenType::Atom, substr)))
@@ -134,7 +136,7 @@ fn next_token<S: Parseable>(string: &S,
 }
 
 
-pub fn tokenize<'a, S: Parseable>(string: S, seps: &'a [&'a str]) -> TokenIterator<S> {
+pub fn tokenize<'a>(string: StrTendril, seps: &'a [&'a str]) -> TokenIterator {
     TokenIterator {
         splitters: seps,
         remaining: string,
@@ -149,10 +151,10 @@ pub fn tokenize<'a, S: Parseable>(string: S, seps: &'a [&'a str]) -> TokenIterat
 mod test {
     use super::*;
 
-    fn all_ok(string: &str) -> Vec<TokenInfo<&str>> {
+    fn all_ok(string: &str) -> Vec<TokenInfo> {
         tokenize(string.into(), &[]).collect::<Result<_, _>>().unwrap()
     }
-    fn all_ok_split<'a, 'b>(string: &'a str, sp: &'b [&'b str]) -> Vec<TokenInfo<&'a str>> {
+    fn all_ok_split<'a, 'b>(string: &'a str, sp: &'b [&'b str]) -> Vec<TokenInfo> {
         tokenize(string.into(), sp).collect::<Result<_, _>>().unwrap()
     }
 
@@ -398,6 +400,29 @@ mod test {
                             byte_offset: 6,
                             typ: TokenType::Atom,
                             string: "world".into(),
+                        }]);
+
+        assert_eq!(all_ok_split("a:b", &[":"]),
+                   vec![TokenInfo {
+                            line_number: 1,
+                            column_number: 1,
+                            byte_offset: 0,
+                            typ: TokenType::Atom,
+                            string: "a".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 2,
+                            byte_offset: 1,
+                            typ: TokenType::Atom,
+                            string: ":".into(),
+                        },
+                        TokenInfo {
+                            line_number: 1,
+                            column_number: 3,
+                            byte_offset: 2,
+                            typ: TokenType::Atom,
+                            string: "b".into(),
                         }]);
     }
 }

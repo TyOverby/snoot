@@ -8,57 +8,8 @@ pub mod error;
 
 pub use parse::ParseResult;
 
-static EMPTY_ARRAY: &'static [&'static str] = &[];
-
-pub fn simple_parse<'a, P: Parseable>(string: P, splitters: &'a[&'a str]) -> parse::ParseResult<P> {
-    let tokens = token::tokenize(string.clone(), splitters);
-    parse::parse(&string, tokens)
-}
-
-pub trait Parseable: Clone + AsRef<str> + ::std::fmt::Debug {
-    fn substring(&self, start: usize, end: usize) -> Self;
-
-    fn empty() -> Self;
-
-    fn substr(&self, start: usize, end: usize) -> &str;
-
-    fn len(&self) -> usize {
-        self.as_ref().len()
-    }
-
-    fn drop_front(&self, count: usize) -> Self {
-        self.substring(count, self.len())
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.as_ref().as_bytes()
-    }
-
-    fn chars(&self) -> ::std::str::Chars {
-        self.as_ref().chars()
-    }
-}
-
-impl <'a> Parseable for &'a str {
-    fn substring(&self, start: usize, end: usize) -> Self {
-        &self[start .. end]
-    }
-
-    fn empty() -> Self { "" }
-
-    fn substr(&self, start: usize, end: usize) -> &str {
-        &self[start .. end]
-    }
-}
-
-impl <'a> Parseable for tendril::StrTendril {
-    fn substring(&self, start: usize, end: usize) -> Self {
-        self.subtendril(start as u32, (end - start) as u32)
-    }
-
-    fn empty() -> Self { "".into() }
-
-    fn substr(&self, start:usize, end: usize) -> &str {
-        &(&*self)[start .. end]
-    }
+pub fn simple_parse<'a, S: Into<tendril::StrTendril>>(string: S, splitters: &'a[&'a str]) -> parse::ParseResult {
+    let tendril = string.into();
+    let tokens = token::tokenize(tendril.clone(), splitters);
+    parse::parse(&tendril, tokens)
 }
