@@ -12,9 +12,8 @@
 At the very least the answer to the last of those is a definitive "no".
 
 ## Zero Copy Parsing
-Parsing a `&'a str`, no problem, you'll get a `Sexpr<&'a str>` back!  No copying done!
-Rather that your tree nodes be owned?  Pass in a `String` and you'll get a `Sexpr<String>` out at the cost of some copies being made!
-Are you a greedy bastard and want owned types *and* zero-copy parsing?  Alloc yourself a `StrTendril` and you'll get an owned `Sexpr<StrTendril>`!
+Because the parsing functions take `Tendril`s instead of `String`s, you don't need to worry about
+tracking the lifetimes of your parsed values.
 
 Is this magic!?  Maybe!
 
