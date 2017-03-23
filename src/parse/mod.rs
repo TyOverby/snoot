@@ -8,19 +8,24 @@ pub mod simplified_test;
 
 use self::scopestack::ScopeStack;
 
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub struct StartEnd {
+    start: u32,
+    end: u32,
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Span {
-    pub full_text: StrTendril,
-    pub text: StrTendril,
-    pub lines: StrTendril,
+    full_text: StrTendril,
+
+    text_bytes: StartEnd,
+    lines_bytes: StartEnd,
 
     pub line_start: usize,
     pub column_start: usize,
-    pub byte_start: usize,
 
     pub line_end: usize,
     pub column_end: usize,
-    pub byte_end: usize,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -132,7 +137,7 @@ impl Sexpr {
     }
 }
 
-fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
+fn find_newline(t: &[u8], pos: u32, direction: isize) -> u32 {
     // We're searching backwards and we've hit the start of the buffer
     if pos == 0 && direction == -1 {
         if t[0] == b'\n' {
@@ -153,74 +158,89 @@ fn find_newline(t: &[u8], pos: usize, direction: isize) -> usize {
         _ => {}
     }
 
-    return find_newline(t, ((pos as isize) + (direction as isize)) as usize, direction);
+    return find_newline(t, ((pos as isize) + (direction as isize)) as u32, direction);
 }
 
 impl Span {
     pub fn empty() -> Span {
         Span {
             full_text: "".into(),
-            text: "".into(),
-            lines: "".into(),
+
+            text_bytes: StartEnd {start: 0, end: 0},
+            lines_bytes: StartEnd { start: 0, end: 0},
 
             line_start: 0,
             column_start: 0,
-            byte_start: 0,
 
             line_end: 0,
             column_end: 0,
-            byte_end: 0,
         }
     }
+
+    pub fn lines(&self) -> StrTendril {
+        let StartEnd {start, end} = self.lines_bytes;
+        self.full_text.subtendril(start, end - start)
+    }
+
+    pub fn text(&self) -> StrTendril {
+        let StartEnd {start, end} = self.text_bytes;
+        self.full_text.subtendril(start, end - start)
+    }
+
     pub fn from_token(token: &TokenInfo, string: &StrTendril) -> Span {
         let chars = token.string.chars().count();
         let bytes = token.string.len();
 
-        let start_line_pos = find_newline(string.as_bytes(), token.byte_offset, -1);
-        let end_line_pos = find_newline(string.as_bytes(), token.byte_offset, 1);
+        let start_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, -1);
+        let end_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, 1);
         assert!(end_line_pos >= start_line_pos);
-        let line = string.subtendril(start_line_pos as u32, (end_line_pos - start_line_pos) as u32);
 
         Span {
             full_text: string.clone(),
-            text: token.string.clone(),
-            lines: line,
+            text_bytes: StartEnd {
+                start: token.byte_offset as u32,
+                end: token.byte_offset as u32 + bytes as u32,
+            },
+            lines_bytes: StartEnd {
+                start: start_line_pos as u32,
+                end: end_line_pos as u32,
+            },
             line_start: token.line_number,
             column_start: token.column_number,
-            byte_start: token.byte_offset,
 
             line_end: token.line_number,
             column_end: token.column_number + chars,
-            byte_end: token.byte_offset + bytes,
         }
     }
 
     pub fn from_spans(start: &Span, end: &Span) -> Span {
         let string = start.full_text.clone();
-        let (start, end) = if start.byte_start < end.byte_start {
+        let (start, end) = if start.text_bytes.start < end.text_bytes.start {
             (start, end)
         } else {
             (end, start)
         };
 
-        let text = string.subtendril(start.byte_start as u32, (end.byte_end - start.byte_start) as u32);
-
-        let start_line_pos = find_newline(string.as_bytes(), start.byte_start, -1);
-        let end_line_pos = find_newline(string.as_bytes(), end.byte_end, 1);
+        let start_line_pos = find_newline(string.as_bytes(), start.text_bytes.start, -1);
+        let end_line_pos = find_newline(string.as_bytes(), end.text_bytes.end, 1);
         assert!(end_line_pos >= start_line_pos);
-        let lines = string.subtendril(start_line_pos as u32, (end_line_pos - start_line_pos) as u32);
 
         Span {
+
             full_text: start.full_text.clone(),
-            text: text,
-            lines: lines,
+            text_bytes: StartEnd {
+                start: start.text_bytes.start,
+                end: end.text_bytes.end,
+            },
+            lines_bytes: StartEnd {
+                start: start_line_pos as u32,
+                end: end_line_pos as u32,
+            },
             line_start: start.line_start,
             column_start: start.column_start,
-            byte_start: start.byte_start,
 
             line_end: end.line_end,
             column_end: end.column_end,
-            byte_end: end.byte_end,
         }
 
     }

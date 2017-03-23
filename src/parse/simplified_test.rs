@@ -28,14 +28,14 @@ impl <'a> From<Sexpr> for SimpleSexpr {
                 SimpleSexpr::List {
                     opening: opening_token.string.into(),
                     closing: closing_token.string.into(),
-                    entire: span.text.into(),
+                    entire: span.text().into(),
                     children: children.into_iter().map(From::from).collect(),
                 }
             }
             Sexpr::UnaryOperator { op, child, span } => {
                 SimpleSexpr::UnaryOperator {
                     op: op.string.into(),
-                    entire: span.text.into(),
+                    entire: span.text().into(),
                     child: Box::new(From::from(*child)),
                 }
             }

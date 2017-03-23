@@ -125,10 +125,10 @@ impl Display for Error {
         }
 
         let padding = base_10_length(builder.global_span.line_end +
-                                     builder.global_span.lines.as_ref().lines().count());
+                                     builder.global_span.lines().as_ref().lines().count());
 
-        let iter = builder.global_span
-            .lines
+        let lines = builder.global_span.lines();
+        let iter = lines
             .as_ref()
             .lines()
             .enumerate()

@@ -25,16 +25,13 @@ fn single_ident() {
                                  },
                                  Span {
                                      full_text: "foo".into(),
-                                     text: "foo".into(),
-                                     lines: "foo".into(),
-
+                                     text_bytes: StartEnd { start: 0, end: 3 },
+                                     lines_bytes: StartEnd { start: 0, end: 3 },
                                      line_start: 1,
                                      column_start: 1,
-                                     byte_start: 0,
 
                                      line_end: 1,
                                      column_end: 4,
-                                     byte_end: 3,
                                  })]);
 }
 
@@ -50,16 +47,13 @@ fn two_idents() {
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
-                                     text: "foo".into(),
-                                     lines: "foo bar".into(),
-
+                                     text_bytes: StartEnd { start: 0, end: 3 },
+                                     lines_bytes: StartEnd { start: 0, end: 7 },
                                      line_start: 1,
                                      column_start: 1,
-                                     byte_start: 0,
 
                                      line_end: 1,
                                      column_end: 4,
-                                     byte_end: 3,
                                  }),
                  Sexpr::Terminal(TokenInfo {
                                      line_number: 1,
@@ -70,16 +64,13 @@ fn two_idents() {
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
-                                     text: "bar".into(),
-                                     lines: "foo bar".into(),
-
+                                     text_bytes: StartEnd { start: 4, end: 7 },
+                                     lines_bytes: StartEnd { start: 0, end: 7 },
                                      line_start: 1,
                                      column_start: 5,
-                                     byte_start: 4,
 
                                      line_end: 1,
                                      column_end: 8,
-                                     byte_end: 7,
                                  })]);
 }
 
@@ -105,16 +96,13 @@ fn parens() {
                      children: vec![],
                      span: Span {
                          full_text: "()".into(),
-                         text: "()".into(),
-                         lines: "()".into(),
-
+                         text_bytes: StartEnd { start: 0, end: 2 },
+                         lines_bytes: StartEnd { start: 0, end: 2 },
                          line_start: 1,
                          column_start: 1,
-                         byte_start: 0,
 
                          line_end: 1,
                          column_end: 3,
-                         byte_end: 2,
                      },
                  }]);
     test_ok("{}".into(),
@@ -137,16 +125,14 @@ fn parens() {
                      children: vec![],
                      span: Span {
                          full_text: "{}".into(),
-                         text: "{}".into(),
-                         lines: "{}".into(),
+                         text_bytes: StartEnd { start: 0, end: 2 },
+                         lines_bytes: StartEnd { start: 0, end: 2 },
 
                          line_start: 1,
                          column_start: 1,
-                         byte_start: 0,
 
                          line_end: 1,
                          column_end: 3,
-                         byte_end: 2,
                      },
                  }]);
     test_ok("[]".into(),
@@ -169,16 +155,13 @@ fn parens() {
                      children: vec![],
                      span: Span {
                          full_text: "[]".into(),
-                         text: "[]".into(),
-                         lines: "[]".into(),
-
+                         text_bytes: StartEnd { start: 0, end: 2 },
+                         lines_bytes: StartEnd { start: 0, end: 2 },
                          line_start: 1,
                          column_start: 1,
-                         byte_start: 0,
 
                          line_end: 1,
                          column_end: 3,
-                         byte_end: 2,
                      },
                  }]);
 }
