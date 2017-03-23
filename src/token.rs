@@ -22,6 +22,7 @@ pub struct TokenInfo {
     pub line_number: usize,
     pub column_number: usize,
     pub byte_offset: usize,
+    pub length: u32,
     pub typ: TokenType,
     pub string: StrTendril,
 }
@@ -43,13 +44,14 @@ impl<'a> Iterator for TokenIterator<'a> {
             Some(Err(e)) => Some(Err(e)),
             Some(Ok((typ, s))) => {
                 let r = Some(Ok(TokenInfo {
-                    line_number: self.line_number,
-                    column_number: self.column_number,
-                    byte_offset: self.byte_offset,
-                    typ: typ,
-                    // TODO(tyoverby): get rid of this clone
-                    string: s.clone(),
-                }));
+                                    line_number: self.line_number,
+                                    column_number: self.column_number,
+                                    byte_offset: self.byte_offset,
+                                    typ: typ,
+                                    length: s.len32(),
+                                    // TODO(tyoverby): get rid of this clone
+                                    string: s.clone(),
+                                }));
 
                 for chr in s.as_ref().chars() {
                     if chr == '\n' {
@@ -65,7 +67,9 @@ impl<'a> Iterator for TokenIterator<'a> {
 
                 // TODO: is this wrong?
                 let bytes_consumed = bytes_consumed as u32;
-                self.remaining = self.remaining.subtendril(bytes_consumed, self.remaining.len32() - bytes_consumed);
+                self.remaining =
+                    self.remaining.subtendril(bytes_consumed,
+                                              self.remaining.len32() - bytes_consumed);
 
                 r
             }
@@ -74,8 +78,8 @@ impl<'a> Iterator for TokenIterator<'a> {
 }
 
 fn next_token(string: &StrTendril,
-                            splitters: &[&str])
-                            -> Option<TokResult<(TokenType, StrTendril)>> {
+              splitters: &[&str])
+              -> Option<TokResult<(TokenType, StrTendril)>> {
     fn idx_until<F>(s: &str, f: F) -> Option<usize>
         where F: Fn(char) -> bool
     {
@@ -104,11 +108,11 @@ fn next_token(string: &StrTendril,
         ']' => Some(Ok((TokenType::ListClosing(2), string.subtendril(0, 1)))),
         _ => {
             let last_idx = idx_until(string.as_ref(), |c| match c {
-                    '(' | '{' | '[' | ')' | '}' | ']' => false,
-                    _ if c.is_whitespace() => false,
-                    _ => true,
-                })
-                .unwrap();
+                '(' | '{' | '[' | ')' | '}' | ']' => false,
+                _ if c.is_whitespace() => false,
+                _ => true,
+            })
+                    .unwrap();
             let mut substr = string.subtendril(0, last_idx as u32);
             let mut lowest = None;
             for splitter in splitters {
@@ -172,6 +176,7 @@ mod test {
                             byte_offset: 0,
                             // TODO: change from 0 to something meaningful
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         }]);
     }
@@ -184,6 +189,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::ListClosing(0),
+                            length: 1,
                             string: ")".into(),
                         }]);
     }
@@ -196,6 +202,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         },
                         TokenInfo {
@@ -203,6 +210,7 @@ mod test {
                             column_number: 2,
                             byte_offset: 1,
                             typ: TokenType::ListClosing(0),
+                            length: 1,
                             string: ")".into(),
                         }])
     }
@@ -216,6 +224,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         },
                         TokenInfo {
@@ -223,6 +232,7 @@ mod test {
                             column_number: 2,
                             byte_offset: 1,
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         },
 
@@ -231,6 +241,7 @@ mod test {
                             column_number: 3,
                             byte_offset: 2,
                             typ: TokenType::ListClosing(0),
+                            length: 1,
                             string: ")".into(),
                         },
                         TokenInfo {
@@ -238,6 +249,7 @@ mod test {
                             column_number: 4,
                             byte_offset: 3,
                             typ: TokenType::ListClosing(0),
+                            length: 1,
                             string: ")".into(),
                         }])
     }
@@ -250,6 +262,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         },
                         TokenInfo {
@@ -257,6 +270,7 @@ mod test {
                             column_number: 2,
                             byte_offset: 1,
                             typ: TokenType::ListOpening(0),
+                            length: 1,
                             string: "(".into(),
                         }])
     }
@@ -269,6 +283,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "@".into(),
                         }]);
     }
@@ -281,6 +296,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 3,
                             string: "123".into(),
                         }]);
 
@@ -290,6 +306,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 4,
                             string: "-123".into(),
                         }]);
 
@@ -299,6 +316,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 7,
                             string: "123.456".into(),
                         }]);
 
@@ -308,6 +326,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 8,
                             string: "+123.456".into(),
                         }]);
     }
@@ -320,6 +339,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 11,
                             string: "hello-world".into(),
                         }]);
 
@@ -329,6 +349,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "a".into(),
                         }]);
 
@@ -338,6 +359,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: "片仮名".len() as u32,
                             string: "片仮名".into(),
                         }]);
 
@@ -347,6 +369,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "-".into(),
                         }]);
     }
@@ -359,6 +382,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 5,
                             string: "hello".into(),
                         },
                         TokenInfo {
@@ -366,6 +390,7 @@ mod test {
                             column_number: 6,
                             byte_offset: 5,
                             typ: TokenType::Whitespace,
+                            length: 1,
                             string: " ".into(),
                         },
                         TokenInfo {
@@ -373,6 +398,7 @@ mod test {
                             column_number: 7,
                             byte_offset: 6,
                             typ: TokenType::Atom,
+                            length: 5,
                             string: "world".into(),
                         }]);
     }
@@ -385,6 +411,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 5,
                             string: "hello".into(),
                         },
                         TokenInfo {
@@ -392,6 +419,7 @@ mod test {
                             column_number: 6,
                             byte_offset: 5,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "-".into(),
                         },
                         TokenInfo {
@@ -399,6 +427,7 @@ mod test {
                             column_number: 7,
                             byte_offset: 6,
                             typ: TokenType::Atom,
+                            length: 5,
                             string: "world".into(),
                         }]);
 
@@ -408,6 +437,7 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "a".into(),
                         },
                         TokenInfo {
@@ -415,6 +445,7 @@ mod test {
                             column_number: 2,
                             byte_offset: 1,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: ":".into(),
                         },
                         TokenInfo {
@@ -422,7 +453,9 @@ mod test {
                             column_number: 3,
                             byte_offset: 2,
                             typ: TokenType::Atom,
+                            length: 1,
                             string: "b".into(),
                         }]);
     }
 }
+

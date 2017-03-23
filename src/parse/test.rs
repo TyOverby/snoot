@@ -21,14 +21,15 @@ fn single_ident() {
                                      column_number: 1,
                                      byte_offset: 0,
                                      typ: TokenType::Atom,
+                                     length: 3,
                                      string: "foo".into(),
                                  },
                                  Span {
                                      full_text: "foo".into(),
                                      text_bytes: StartEnd { start: 0, end: 3 },
                                      lines_bytes: StartEnd { start: 0, end: 3 },
-                                     lines_covered: StartEnd { start: 1, end: 1},
-                                     columns: StartEnd { start: 1, end: 4},
+                                     lines_covered: StartEnd { start: 1, end: 1 },
+                                     columns: StartEnd { start: 1, end: 4 },
                                  })]);
 }
 
@@ -40,6 +41,7 @@ fn two_idents() {
                                      column_number: 1,
                                      byte_offset: 0,
                                      typ: TokenType::Atom,
+                                     length: 3,
                                      string: "foo".into(),
                                  },
                                  Span {
@@ -54,6 +56,7 @@ fn two_idents() {
                                      column_number: 5,
                                      byte_offset: 4,
                                      typ: TokenType::Atom,
+                                     length: 3,
                                      string: "bar".into(),
                                  },
                                  Span {
@@ -74,6 +77,7 @@ fn parens() {
                          column_number: 1,
                          byte_offset: 0,
                          typ: TokenType::ListOpening(0),
+                         length: 1,
                          string: "(".into(),
                      },
                      closing_token: TokenInfo {
@@ -81,6 +85,7 @@ fn parens() {
                          column_number: 2,
                          byte_offset: 1,
                          typ: TokenType::ListClosing(0),
+                         length: 1,
                          string: ")".into(),
                      },
 
@@ -89,7 +94,7 @@ fn parens() {
                          full_text: "()".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
-                         lines_covered: StartEnd { start: 1, end: 1},
+                         lines_covered: StartEnd { start: 1, end: 1 },
                          columns: StartEnd { start: 1, end: 3 },
                      },
                  }]);
@@ -100,6 +105,7 @@ fn parens() {
                          column_number: 1,
                          byte_offset: 0,
                          typ: TokenType::ListOpening(1),
+                         length: 1,
                          string: "{".into(),
                      },
                      closing_token: TokenInfo {
@@ -107,6 +113,7 @@ fn parens() {
                          column_number: 2,
                          byte_offset: 1,
                          typ: TokenType::ListClosing(1),
+                         length: 1,
                          string: "}".into(),
                      },
 
@@ -116,7 +123,7 @@ fn parens() {
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
                          lines_covered: StartEnd { start: 1, end: 1 },
-                         columns: StartEnd { start: 1, end: 3},
+                         columns: StartEnd { start: 1, end: 3 },
                      },
                  }]);
     test_ok("[]".into(),
@@ -126,6 +133,7 @@ fn parens() {
                          column_number: 1,
                          byte_offset: 0,
                          typ: TokenType::ListOpening(2),
+                         length: 1,
                          string: "[".into(),
                      },
                      closing_token: TokenInfo {
@@ -133,6 +141,7 @@ fn parens() {
                          column_number: 2,
                          byte_offset: 1,
                          typ: TokenType::ListClosing(2),
+                         length: 1,
                          string: "]".into(),
                      },
 
