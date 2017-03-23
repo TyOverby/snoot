@@ -1,3 +1,4 @@
+#![feature(pub_restricted)]
 extern crate tendril;
 extern crate regex;
 extern crate itertools;

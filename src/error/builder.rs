@@ -115,24 +115,23 @@ impl Display for Error {
             writeln!(f,
                      " --> {}:{}:{}",
                      file,
-                     builder.global_span.line_start,
-                     builder.global_span.column_start)?;
+                     builder.global_span.lines_covered.start,
+                     builder.global_span.columns.start)?;
         } else {
             writeln!(f,
                      " --> {}:{}",
-                     builder.global_span.line_start,
-                     builder.global_span.column_start)?;
+                     builder.global_span.lines_covered.start,
+                     builder.global_span.columns.start)?;
         }
 
-        let padding = base_10_length(builder.global_span.line_end +
+        let padding = base_10_length(builder.global_span.lines_covered.end as usize+
                                      builder.global_span.lines().as_ref().lines().count());
 
         let lines = builder.global_span.lines();
-        let iter = lines
-            .as_ref()
+        let iter = lines.as_ref()
             .lines()
             .enumerate()
-            .map(|(i, line)| (i + builder.global_span.line_start, line));
+            .map(|(i, line)| (i + builder.global_span.lines_covered.start as usize, line));
 
         let mut skipped_streak = 0;
         for (i, line) in iter {
@@ -167,12 +166,12 @@ fn get_span<'a>(ann: &'a ErrorAnnotation) -> &'a Span {
 }
 
 fn should_skip<'a, I>(line: usize,
-                                         already_skipped: usize,
-                                         padding: usize,
-                                         max_gap_size: Option<usize>,
-                                         global_span: &'a Span,
-                                         annot_span: I)
-                                         -> bool
+                      already_skipped: usize,
+                      padding: usize,
+                      max_gap_size: Option<usize>,
+                      global_span: &'a Span,
+                      annot_span: I)
+                      -> bool
     where I: Iterator<Item = &'a Span> + Clone
 {
     let max_gap = match max_gap_size {
@@ -225,8 +224,8 @@ fn line_dist_all<'a, I>(line: usize, i: I) -> Option<usize>
 // Return the distance to
 fn line_distance(line: usize, span: &Span) -> usize {
 
-    let dist_start = (line as isize - span.line_start as isize).abs() as usize;
-    let dist_end = (line as isize - span.line_end as isize).abs() as usize;
+    let dist_start = (line as isize - span.lines_covered.start as isize).abs() as usize;
+    let dist_end = (line as isize - span.lines_covered.end as isize).abs() as usize;
 
     let shortest_dist = ::std::cmp::min(dist_start, dist_end);
 

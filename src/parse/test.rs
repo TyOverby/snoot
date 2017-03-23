@@ -27,11 +27,8 @@ fn single_ident() {
                                      full_text: "foo".into(),
                                      text_bytes: StartEnd { start: 0, end: 3 },
                                      lines_bytes: StartEnd { start: 0, end: 3 },
-                                     line_start: 1,
-                                     column_start: 1,
-
-                                     line_end: 1,
-                                     column_end: 4,
+                                     lines_covered: StartEnd { start: 1, end: 1},
+                                     columns: StartEnd { start: 1, end: 4},
                                  })]);
 }
 
@@ -49,11 +46,8 @@ fn two_idents() {
                                      full_text: "foo bar".into(),
                                      text_bytes: StartEnd { start: 0, end: 3 },
                                      lines_bytes: StartEnd { start: 0, end: 7 },
-                                     line_start: 1,
-                                     column_start: 1,
-
-                                     line_end: 1,
-                                     column_end: 4,
+                                     lines_covered: StartEnd { start: 1, end: 1 },
+                                     columns: StartEnd { start: 1, end: 4 },
                                  }),
                  Sexpr::Terminal(TokenInfo {
                                      line_number: 1,
@@ -66,11 +60,8 @@ fn two_idents() {
                                      full_text: "foo bar".into(),
                                      text_bytes: StartEnd { start: 4, end: 7 },
                                      lines_bytes: StartEnd { start: 0, end: 7 },
-                                     line_start: 1,
-                                     column_start: 5,
-
-                                     line_end: 1,
-                                     column_end: 8,
+                                     lines_covered: StartEnd { start: 1, end: 1 },
+                                     columns: StartEnd { start: 5, end: 8 },
                                  })]);
 }
 
@@ -98,11 +89,8 @@ fn parens() {
                          full_text: "()".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
-                         line_start: 1,
-                         column_start: 1,
-
-                         line_end: 1,
-                         column_end: 3,
+                         lines_covered: StartEnd { start: 1, end: 1},
+                         columns: StartEnd { start: 1, end: 3 },
                      },
                  }]);
     test_ok("{}".into(),
@@ -127,12 +115,8 @@ fn parens() {
                          full_text: "{}".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
-
-                         line_start: 1,
-                         column_start: 1,
-
-                         line_end: 1,
-                         column_end: 3,
+                         lines_covered: StartEnd { start: 1, end: 1 },
+                         columns: StartEnd { start: 1, end: 3},
                      },
                  }]);
     test_ok("[]".into(),
@@ -157,11 +141,8 @@ fn parens() {
                          full_text: "[]".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
-                         line_start: 1,
-                         column_start: 1,
-
-                         line_end: 1,
-                         column_end: 3,
+                         lines_covered: StartEnd { start: 1, end: 1 },
+                         columns: StartEnd { start: 1, end: 3 },
                      },
                  }]);
 }

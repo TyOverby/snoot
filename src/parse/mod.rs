@@ -9,23 +9,20 @@ pub mod simplified_test;
 use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub struct StartEnd {
-    start: u32,
-    end: u32,
+pub(crate) struct StartEnd {
+    pub start: u32,
+    pub end: u32,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Span {
-    full_text: StrTendril,
+    pub(crate) full_text: StrTendril,
 
-    text_bytes: StartEnd,
-    lines_bytes: StartEnd,
+    pub(crate) text_bytes: StartEnd,
+    pub(crate) lines_bytes: StartEnd,
 
-    pub line_start: usize,
-    pub column_start: usize,
-
-    pub line_end: usize,
-    pub column_end: usize,
+    pub(crate) lines_covered: StartEnd,
+    pub(crate) columns: StartEnd,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -168,12 +165,8 @@ impl Span {
 
             text_bytes: StartEnd {start: 0, end: 0},
             lines_bytes: StartEnd { start: 0, end: 0},
-
-            line_start: 0,
-            column_start: 0,
-
-            line_end: 0,
-            column_end: 0,
+            lines_covered: StartEnd { start: 0, end: 0},
+            columns: StartEnd { start: 0, end: 0 },
         }
     }
 
@@ -205,11 +198,14 @@ impl Span {
                 start: start_line_pos as u32,
                 end: end_line_pos as u32,
             },
-            line_start: token.line_number,
-            column_start: token.column_number,
-
-            line_end: token.line_number,
-            column_end: token.column_number + chars,
+            lines_covered: StartEnd {
+                start: token.line_number as u32,
+                end: token.line_number as u32,
+            },
+            columns: StartEnd {
+                start: token.column_number as u32,
+                end: token.column_number as u32 + chars as u32,
+            }
         }
     }
 
@@ -236,11 +232,14 @@ impl Span {
                 start: start_line_pos as u32,
                 end: end_line_pos as u32,
             },
-            line_start: start.line_start,
-            column_start: start.column_start,
-
-            line_end: end.line_end,
-            column_end: end.column_end,
+            lines_covered: StartEnd {
+                start: start.lines_covered.start,
+                end: end.lines_covered.end,
+            },
+            columns: StartEnd {
+                start: start.columns.start,
+                end: end.columns.end,
+            }
         }
 
     }
