@@ -6,9 +6,12 @@ extern crate itertools;
 pub mod token;
 pub mod parse;
 pub mod diagnostic;
+mod sexpr;
+
+pub use sexpr::Sexpr;
 
 pub struct Result {
-    pub roots: Vec<parse::Sexpr>,
+    pub roots: Vec<Sexpr>,
     pub diagnostics: diagnostic::DiagnosticBag,
 }
 

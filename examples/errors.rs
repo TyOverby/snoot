@@ -11,7 +11,7 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::ParseResult { roots, diagnostics } = simple_parse(PROGRAM, &[]);
+    let snoot::Result { roots, diagnostics } = simple_parse(PROGRAM, &[]);
     assert!(diagnostics.is_empty());
 
     // Report an error over the entire program
