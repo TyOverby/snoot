@@ -33,6 +33,7 @@ pub enum SexprKind {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Sexpr {
     List {
+        list_type: ListType,
         opening_token: TokenInfo,
         closing_token: TokenInfo,
 
@@ -181,8 +182,8 @@ impl Span {
     }
 
     pub fn from_token(token: &TokenInfo, string: &StrTendril) -> Span {
-        let chars = token.string.chars().count();
-        let bytes = token.string.len();
+        let chars = string.subtendril(token.byte_offset as u32, token.length).len();
+        let bytes = token.length;
 
         let start_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, -1);
         let end_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, 1);
@@ -276,11 +277,11 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
             //    scopestack.open_unary(token);
             //}
             TokenType::Whitespace => { /* do nothing for now */ }
-            TokenType::ListOpening(_n) => {
-                scopestack.open_list(token);
+            TokenType::ListOpening(typ) => {
+                scopestack.open_list(typ, token);
             }
-            TokenType::ListClosing(_n) => {
-                scopestack.close(Some(token), &mut diagnostics);
+            TokenType::ListClosing(typ) => {
+                scopestack.close(Some((typ, token)), &mut diagnostics);
             }
         }
     }

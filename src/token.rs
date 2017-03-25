@@ -2,9 +2,16 @@ use super::parse::Span;
 use tendril::StrTendril;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum ListType {
+    Paren, // ( and )
+    Bracket, // [ and ]
+    Brace, // { and }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TokenType {
-    ListOpening(u8),
-    ListClosing(u8),
+    ListOpening(ListType),
+    ListClosing(ListType),
     Whitespace,
     String,
     Atom,
@@ -24,7 +31,6 @@ pub struct TokenInfo {
     pub byte_offset: usize,
     pub length: u32,
     pub typ: TokenType,
-    pub string: StrTendril,
 }
 
 pub struct TokenIterator<'a> {
@@ -33,6 +39,20 @@ pub struct TokenIterator<'a> {
     line_number: usize,
     column_number: usize,
     byte_offset: usize,
+}
+
+impl ListType {
+    #[allow(dead_code)]
+    pub(crate) fn to_string(&self, open: bool) -> String {
+        match (*self, open) {
+            (ListType::Paren, true) => "(",
+            (ListType::Brace, true) => "{",
+            (ListType::Bracket, true) => "[",
+            (ListType::Paren, false) => ")",
+            (ListType::Brace, false) => "}",
+            (ListType::Bracket, false) => "]",
+        }.into()
+    }
 }
 
 impl<'a> Iterator for TokenIterator<'a> {
@@ -49,8 +69,6 @@ impl<'a> Iterator for TokenIterator<'a> {
                                     byte_offset: self.byte_offset,
                                     typ: typ,
                                     length: s.len32(),
-                                    // TODO(tyoverby): get rid of this clone
-                                    string: s.clone(),
                                 }));
 
                 for chr in s.as_ref().chars() {
@@ -100,12 +118,12 @@ fn next_token(string: &StrTendril,
             Some(Ok((TokenType::Whitespace, string.subtendril(0, last_idx as u32))))
         }
 
-        '(' => Some(Ok((TokenType::ListOpening(0), string.subtendril(0, 1)))),
-        '{' => Some(Ok((TokenType::ListOpening(1), string.subtendril(0, 1)))),
-        '[' => Some(Ok((TokenType::ListOpening(2), string.subtendril(0, 1)))),
-        ')' => Some(Ok((TokenType::ListClosing(0), string.subtendril(0, 1)))),
-        '}' => Some(Ok((TokenType::ListClosing(1), string.subtendril(0, 1)))),
-        ']' => Some(Ok((TokenType::ListClosing(2), string.subtendril(0, 1)))),
+        '(' => Some(Ok((TokenType::ListOpening(ListType::Paren), string.subtendril(0, 1)))),
+        '{' => Some(Ok((TokenType::ListOpening(ListType::Brace), string.subtendril(0, 1)))),
+        '[' => Some(Ok((TokenType::ListOpening(ListType::Bracket), string.subtendril(0, 1)))),
+        ')' => Some(Ok((TokenType::ListClosing(ListType::Paren), string.subtendril(0, 1)))),
+        '}' => Some(Ok((TokenType::ListClosing(ListType::Brace), string.subtendril(0, 1)))),
+        ']' => Some(Ok((TokenType::ListClosing(ListType::Bracket), string.subtendril(0, 1)))),
         _ => {
             let last_idx = idx_until(string.as_ref(), |c| match c {
                 '(' | '{' | '[' | ')' | '}' | ']' => false,
@@ -175,9 +193,8 @@ mod test {
                             column_number: 1,
                             byte_offset: 0,
                             // TODO: change from 0 to something meaningful
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         }]);
     }
 
@@ -188,9 +205,8 @@ mod test {
                             line_number: 1,
                             column_number: 1,
                             byte_offset: 0,
-                            typ: TokenType::ListClosing(0),
+                            typ: TokenType::ListClosing(ListType::Paren),
                             length: 1,
-                            string: ")".into(),
                         }]);
     }
 
@@ -201,17 +217,15 @@ mod test {
                             line_number: 1,
                             column_number: 1,
                             byte_offset: 0,
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         },
                         TokenInfo {
                             line_number: 1,
                             column_number: 2,
                             byte_offset: 1,
-                            typ: TokenType::ListClosing(0),
+                            typ: TokenType::ListClosing(ListType::Paren),
                             length: 1,
-                            string: ")".into(),
                         }])
     }
 
@@ -223,34 +237,30 @@ mod test {
                             line_number: 1,
                             column_number: 1,
                             byte_offset: 0,
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         },
                         TokenInfo {
                             line_number: 1,
                             column_number: 2,
                             byte_offset: 1,
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         },
 
                         TokenInfo {
                             line_number: 1,
                             column_number: 3,
                             byte_offset: 2,
-                            typ: TokenType::ListClosing(0),
+                            typ: TokenType::ListClosing(ListType::Paren),
                             length: 1,
-                            string: ")".into(),
                         },
                         TokenInfo {
                             line_number: 1,
                             column_number: 4,
                             byte_offset: 3,
-                            typ: TokenType::ListClosing(0),
+                            typ: TokenType::ListClosing(ListType::Paren),
                             length: 1,
-                            string: ")".into(),
                         }])
     }
 
@@ -261,17 +271,15 @@ mod test {
                             line_number: 1,
                             column_number: 1,
                             byte_offset: 0,
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         },
                         TokenInfo {
                             line_number: 1,
                             column_number: 2,
                             byte_offset: 1,
-                            typ: TokenType::ListOpening(0),
+                            typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
-                            string: "(".into(),
                         }])
     }
 
@@ -284,7 +292,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "@".into(),
                         }]);
     }
 
@@ -297,7 +304,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 3,
-                            string: "123".into(),
                         }]);
 
         assert_eq!(all_ok("-123"),
@@ -307,7 +313,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 4,
-                            string: "-123".into(),
                         }]);
 
         assert_eq!(all_ok("123.456"),
@@ -317,7 +322,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 7,
-                            string: "123.456".into(),
                         }]);
 
         assert_eq!(all_ok("+123.456"),
@@ -327,7 +331,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 8,
-                            string: "+123.456".into(),
                         }]);
     }
 
@@ -340,7 +343,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 11,
-                            string: "hello-world".into(),
                         }]);
 
         assert_eq!(all_ok("a"),
@@ -350,7 +352,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "a".into(),
                         }]);
 
         assert_eq!(all_ok("片仮名"),
@@ -360,7 +361,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: "片仮名".len() as u32,
-                            string: "片仮名".into(),
                         }]);
 
         assert_eq!(all_ok("-"),
@@ -370,7 +370,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "-".into(),
                         }]);
     }
 
@@ -383,7 +382,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 5,
-                            string: "hello".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -391,7 +389,6 @@ mod test {
                             byte_offset: 5,
                             typ: TokenType::Whitespace,
                             length: 1,
-                            string: " ".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -399,7 +396,6 @@ mod test {
                             byte_offset: 6,
                             typ: TokenType::Atom,
                             length: 5,
-                            string: "world".into(),
                         }]);
     }
 
@@ -412,7 +408,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 5,
-                            string: "hello".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -420,7 +415,6 @@ mod test {
                             byte_offset: 5,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "-".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -428,7 +422,6 @@ mod test {
                             byte_offset: 6,
                             typ: TokenType::Atom,
                             length: 5,
-                            string: "world".into(),
                         }]);
 
         assert_eq!(all_ok_split("a:b", &[":"]),
@@ -438,7 +431,6 @@ mod test {
                             byte_offset: 0,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "a".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -446,7 +438,6 @@ mod test {
                             byte_offset: 1,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: ":".into(),
                         },
                         TokenInfo {
                             line_number: 1,
@@ -454,7 +445,6 @@ mod test {
                             byte_offset: 2,
                             typ: TokenType::Atom,
                             length: 1,
-                            string: "b".into(),
                         }]);
     }
 }

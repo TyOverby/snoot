@@ -12,36 +12,25 @@ enum SimpleSexpr {
         entire: String,
         children: Vec<SimpleSexpr>,
     },
-    UnaryOperator {
-        op: String,
-        entire: String,
-        child: Box<SimpleSexpr>,
-    },
     String(String),
     Ident(String),
 }
 
-impl <'a> From<Sexpr> for SimpleSexpr {
+impl<'a> From<Sexpr> for SimpleSexpr {
     fn from(sexpr: Sexpr) -> SimpleSexpr {
         match sexpr {
-            Sexpr::List { opening_token, closing_token, children, span } => {
+            Sexpr::List { list_type, children, span, .. } => {
                 SimpleSexpr::List {
-                    opening: opening_token.string.into(),
-                    closing: closing_token.string.into(),
+                    opening: list_type.to_string(true),
+                    closing: list_type.to_string(false),
                     entire: span.text().into(),
                     children: children.into_iter().map(From::from).collect(),
                 }
             }
-            Sexpr::UnaryOperator { op, child, span } => {
-                SimpleSexpr::UnaryOperator {
-                    op: op.string.into(),
-                    entire: span.text().into(),
-                    child: Box::new(From::from(*child)),
-                }
-            }
+            Sexpr::UnaryOperator { .. } => unimplemented!(),
 
-            Sexpr::String(tok, _) => SimpleSexpr::String(tok.string.into()),
-            Sexpr::Terminal(tok, _) => SimpleSexpr::Ident(tok.string.into()),
+            s @ Sexpr::String(_, _) => SimpleSexpr::String(s.span().text().into()),
+            s @ Sexpr::Terminal(_, _) => SimpleSexpr::Ident(s.span().text().into()),
         }
     }
 }
@@ -131,34 +120,30 @@ fn multiple_top_level_lists() {
 
 #[test]
 fn prop_regression() {
-    parse_simple_ok("{a: 5 b : 10}", vec![
-        SimpleSexpr::List {
-            opening: "{".into(),
-            closing: "}".into(),
-            entire: "{a: 5 b : 10}".into(),
-            children: vec![
-                SimpleSexpr::Ident("a:".into()),
-                SimpleSexpr::Ident("5".into()),
-                SimpleSexpr::Ident("b".into()),
-                SimpleSexpr::Ident(":".into()),
-                SimpleSexpr::Ident("10".into()),
-            ],
-        }
-    ]);
+    parse_simple_ok("{a: 5 b : 10}",
+                    vec![SimpleSexpr::List {
+                             opening: "{".into(),
+                             closing: "}".into(),
+                             entire: "{a: 5 b : 10}".into(),
+                             children: vec![SimpleSexpr::Ident("a:".into()),
+                                            SimpleSexpr::Ident("5".into()),
+                                            SimpleSexpr::Ident("b".into()),
+                                            SimpleSexpr::Ident(":".into()),
+                                            SimpleSexpr::Ident("10".into())],
+                         }]);
 
-    parse_simple_ok_split("{a: 5 b : 10}", vec![
-        SimpleSexpr::List {
-            opening: "{".into(),
-            closing: "}".into(),
-            entire: "{a: 5 b : 10}".into(),
-            children: vec![
-                SimpleSexpr::Ident("a".into()),
-                SimpleSexpr::Ident(":".into()),
-                SimpleSexpr::Ident("5".into()),
-                SimpleSexpr::Ident("b".into()),
-                SimpleSexpr::Ident(":".into()),
-                SimpleSexpr::Ident("10".into()),
-            ],
-        }
-    ], &[":"]);
+    parse_simple_ok_split("{a: 5 b : 10}",
+                          vec![SimpleSexpr::List {
+                                   opening: "{".into(),
+                                   closing: "}".into(),
+                                   entire: "{a: 5 b : 10}".into(),
+                                   children: vec![SimpleSexpr::Ident("a".into()),
+                                                  SimpleSexpr::Ident(":".into()),
+                                                  SimpleSexpr::Ident("5".into()),
+                                                  SimpleSexpr::Ident("b".into()),
+                                                  SimpleSexpr::Ident(":".into()),
+                                                  SimpleSexpr::Ident("10".into())],
+                               }],
+                          &[":"]);
 }
+

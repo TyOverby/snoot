@@ -22,7 +22,6 @@ fn single_ident() {
                                      byte_offset: 0,
                                      typ: TokenType::Atom,
                                      length: 3,
-                                     string: "foo".into(),
                                  },
                                  Span {
                                      full_text: "foo".into(),
@@ -42,7 +41,6 @@ fn two_idents() {
                                      byte_offset: 0,
                                      typ: TokenType::Atom,
                                      length: 3,
-                                     string: "foo".into(),
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
@@ -57,7 +55,6 @@ fn two_idents() {
                                      byte_offset: 4,
                                      typ: TokenType::Atom,
                                      length: 3,
-                                     string: "bar".into(),
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
@@ -72,21 +69,20 @@ fn two_idents() {
 fn parens() {
     test_ok("()".into(),
             vec![Sexpr::List {
+                     list_type: ListType::Paren,
                      opening_token: TokenInfo {
                          line_number: 1,
                          column_number: 1,
                          byte_offset: 0,
-                         typ: TokenType::ListOpening(0),
+                         typ: TokenType::ListOpening(ListType::Paren),
                          length: 1,
-                         string: "(".into(),
                      },
                      closing_token: TokenInfo {
                          line_number: 1,
                          column_number: 2,
                          byte_offset: 1,
-                         typ: TokenType::ListClosing(0),
+                         typ: TokenType::ListClosing(ListType::Paren),
                          length: 1,
-                         string: ")".into(),
                      },
 
                      children: vec![],
@@ -100,21 +96,20 @@ fn parens() {
                  }]);
     test_ok("{}".into(),
             vec![Sexpr::List {
+                     list_type: ListType::Brace,
                      opening_token: TokenInfo {
                          line_number: 1,
                          column_number: 1,
                          byte_offset: 0,
-                         typ: TokenType::ListOpening(1),
+                         typ: TokenType::ListOpening(ListType::Brace),
                          length: 1,
-                         string: "{".into(),
                      },
                      closing_token: TokenInfo {
                          line_number: 1,
                          column_number: 2,
                          byte_offset: 1,
-                         typ: TokenType::ListClosing(1),
+                         typ: TokenType::ListClosing(ListType::Brace),
                          length: 1,
-                         string: "}".into(),
                      },
 
                      children: vec![],
@@ -128,21 +123,20 @@ fn parens() {
                  }]);
     test_ok("[]".into(),
             vec![Sexpr::List {
+                     list_type: ListType::Bracket,
                      opening_token: TokenInfo {
                          line_number: 1,
                          column_number: 1,
                          byte_offset: 0,
-                         typ: TokenType::ListOpening(2),
+                         typ: TokenType::ListOpening(ListType::Bracket),
                          length: 1,
-                         string: "[".into(),
                      },
                      closing_token: TokenInfo {
                          line_number: 1,
                          column_number: 2,
                          byte_offset: 1,
-                         typ: TokenType::ListClosing(2),
+                         typ: TokenType::ListClosing(ListType::Bracket),
                          length: 1,
-                         string: "]".into(),
                      },
 
                      children: vec![],
