@@ -1,5 +1,6 @@
 use super::token::*;
-use super::error::{Error, ErrorBuilder, ErrorLevel};
+use super::diagnostic::DiagnosticBag;
+use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
 use tendril::StrTendril;
 
 mod scopestack;
@@ -8,21 +9,21 @@ pub mod simplified_test;
 
 use self::scopestack::ScopeStack;
 
-#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
 pub(crate) struct StartEnd {
     pub start: u32,
     pub end: u32,
 }
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone, PartialOrd, Ord)]
 pub struct Span {
-    pub(crate) full_text: StrTendril,
-
     pub(crate) text_bytes: StartEnd,
     pub(crate) lines_bytes: StartEnd,
 
     pub(crate) lines_covered: StartEnd,
     pub(crate) columns: StartEnd,
+
+    pub(crate) full_text: StrTendril,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -50,10 +51,9 @@ pub enum Sexpr {
 }
 
 #[derive(Debug)]
-pub enum Diagnostic {
+pub(crate) enum ParseDiagnostic {
     TokenizationError(TokError),
     UnclosedList(Span),
-    UnmatchedListClosing(Span, Span),
     ExtraClosing(Span),
     WrongClosing {
         opening_span: Span,
@@ -65,41 +65,24 @@ pub enum Diagnostic {
 
 pub struct ParseResult {
     pub roots: Vec<Sexpr>,
-    pub diagnostics: Vec<Diagnostic>,
+    pub diagnostics: DiagnosticBag,
 }
 
-impl Diagnostic {
-    pub fn into_error(self, filename: Option<String>) -> Error {
+impl ParseDiagnostic {
+    pub fn into_diagnostic(self) -> Diagnostic {
         match self {
-            Diagnostic::TokenizationError(TokError::UnclosedString(_span)) => {
+            ParseDiagnostic::TokenizationError(TokError::UnclosedString(_span)) => {
                 unreachable!();
             }
-            Diagnostic::ExtraClosing(span) => {
-                let builder = ErrorBuilder::new("extra list closing", &span);
-                let builder = if let Some(f) = filename {
-                    builder.with_file_name(f)
-                } else { builder };
-
-                builder.with_error_level(ErrorLevel::Error).build()
+            ParseDiagnostic::ExtraClosing(span) => {
+                let builder = DiagnosticBuilder::new("extra list closing", &span);
+                builder.with_error_level(DiagnosticLevel::Error).build()
             }
-            Diagnostic::UnmatchedListClosing(start, end) => {
-                let span = Span::from_spans(&start, &end);
-                let builder = ErrorBuilder::new("unmatched list closing", &span);
-                let builder = if let Some(f) = filename {
-                    builder.with_file_name(f)
-                } else { builder };
-
-                builder.with_error_level(ErrorLevel::Error).build()
+            ParseDiagnostic::UnclosedList(span) => {
+                let builder = DiagnosticBuilder::new("unclosed list", &span);
+                builder.with_error_level(DiagnosticLevel::Error).build()
             }
-            Diagnostic::UnclosedList(span) => {
-                let builder = ErrorBuilder::new("unclosed list", &span);
-                let builder = if let Some(f) = filename {
-                    builder.with_file_name(f)
-                } else { builder };
-
-                builder.with_error_level(ErrorLevel::Error).build()
-            }
-            Diagnostic::WrongClosing {
+            ParseDiagnostic::WrongClosing {
                 opening_span,
                 closing_span,
                 expected_list_type,
@@ -108,11 +91,8 @@ impl Diagnostic {
                 let text = format!("Expected {} but found {}",
                     expected_list_type.to_string(false),
                     actual_list_type.to_string(false));
-                let builder = ErrorBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
-                let builder = if let Some(f) = filename {
-                    builder.with_file_name(f)
-                } else { builder };
-                builder.with_error_level(ErrorLevel::Error).build()
+                let builder = DiagnosticBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
+                builder.with_error_level(DiagnosticLevel::Error).build()
             }
         }
     }
@@ -278,7 +258,7 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
         let token = match tokens.next() {
             Some(Ok(t)) => t,
             Some(Err(e)) => {
-                diagnostics.push(Diagnostic::TokenizationError(e));
+                diagnostics.push(ParseDiagnostic::TokenizationError(e));
                 continue;
             }
             None => break,
@@ -311,7 +291,7 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
 
     ParseResult {
         roots: out,
-        diagnostics: diagnostics,
+        diagnostics: diagnostics.into_iter().map(ParseDiagnostic::into_diagnostic).collect(),
     }
 }
 

@@ -1,48 +1,54 @@
 use std::fmt::{self, Display, Formatter, Debug};
-
 use parse::Span;
 
-pub struct Error(ErrorBuilder);
+mod diagnostic_bag;
+pub use self::diagnostic_bag::DiagnosticBag;
 
-pub enum ErrorLevel {
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
+pub struct Diagnostic(pub(crate) DiagnosticBuilder);
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
+pub enum DiagnosticLevel {
     Info,
     Warn,
     Error,
     Custom(String),
 }
 
-pub struct ErrorBuilder {
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
+pub struct DiagnosticBuilder {
     pub message: String,
-    pub annotations: Vec<ErrorAnnotation>,
+    pub annotations: Vec<DiagnosticAnnotation>,
     pub global_span: Span,
     pub padding: usize,
+    pub error_level: DiagnosticLevel,
 
     // optional
     pub min_gap: Option<usize>,
     pub filename: Option<String>,
-    pub error_level: Option<ErrorLevel>,
 }
 
-pub struct ErrorAnnotation {
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
+pub struct DiagnosticAnnotation {
     pub message: String,
     pub span: Span,
 }
 
-impl ErrorLevel {
+impl DiagnosticLevel {
     fn as_str(&self) -> &str {
         match self {
-            &ErrorLevel::Info => "info",
-            &ErrorLevel::Warn => "warn",
-            &ErrorLevel::Error => "error",
-            &ErrorLevel::Custom(ref s) => s,
+            &DiagnosticLevel::Info => "info",
+            &DiagnosticLevel::Warn => "warn",
+            &DiagnosticLevel::Error => "error",
+            &DiagnosticLevel::Custom(ref s) => s,
 
         }
     }
 }
 
-impl ErrorBuilder {
-    pub fn new<T: Into<String>>(message: T, span: &Span) -> ErrorBuilder {
-        ErrorBuilder {
+impl DiagnosticBuilder {
+    pub fn new<T: Into<String>>(message: T, span: &Span) -> DiagnosticBuilder {
+        DiagnosticBuilder {
             message: message.into(),
             annotations: vec![],
             global_span: span.clone(),
@@ -50,65 +56,61 @@ impl ErrorBuilder {
 
             min_gap: None,
             filename: None,
-            error_level: None,
+            error_level: DiagnosticLevel::Error,
         }
     }
 
-    pub fn with_error_level(mut self, level: ErrorLevel) -> ErrorBuilder {
-        self.error_level = Some(level);
+    pub fn with_error_level(mut self, level: DiagnosticLevel) -> DiagnosticBuilder {
+        self.error_level = level;
         self
     }
 
-    pub fn with_file_name<T: Into<String>>(mut self, name: T) -> ErrorBuilder {
+    pub fn with_file_name<T: Into<String>>(mut self, name: T) -> DiagnosticBuilder {
         self.filename = Some(name.into());
         self
     }
 
-    pub fn with_min_gap(mut self, gap: usize) -> ErrorBuilder {
+    pub fn with_min_gap(mut self, gap: usize) -> DiagnosticBuilder {
         self.min_gap = Some(gap);
         self
     }
 
-    pub fn with_garunteed_padding(mut self, padding: usize) -> ErrorBuilder {
+    pub fn with_garunteed_padding(mut self, padding: usize) -> DiagnosticBuilder {
         self.padding = padding;
         self
     }
 
-    pub fn add_annotation(mut self, annotation: ErrorAnnotation) -> ErrorBuilder {
+    pub fn add_annotation(mut self, annotation: DiagnosticAnnotation) -> DiagnosticBuilder {
         self.annotations.push(annotation);
         self
     }
 
-    pub fn build(self) -> Error {
-        Error(self)
+    pub fn build(self) -> Diagnostic {
+        Diagnostic(self)
     }
 }
 
-impl ErrorAnnotation {
-    pub fn new(message: String, span: Span) -> ErrorAnnotation {
-        ErrorAnnotation {
+impl DiagnosticAnnotation {
+    pub fn new(message: String, span: Span) -> DiagnosticAnnotation {
+        DiagnosticAnnotation {
             message: message,
             span: span,
         }
     }
 }
 
-impl Debug for Error {
+impl Debug for Diagnostic {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-impl Display for Error {
+impl Display for Diagnostic {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let &Error(ref builder) = self;
+        let &Diagnostic(ref builder) = self;
 
         // "error" message
-        if let &Some(ref error_level) = &builder.error_level {
-            writeln!(f, "{}: {}", error_level.as_str(), builder.message)?;
-        } else {
-            writeln!(f, "{}", builder.message)?;
-        }
+        writeln!(f, "{}: {}", builder.error_level.as_str(), builder.message)?;
 
         // File, line number, column number information
         if let &Some(ref file) = &builder.filename {
@@ -124,14 +126,19 @@ impl Display for Error {
                      builder.global_span.columns.start)?;
         }
 
-        let padding = base_10_length(builder.global_span.lines_covered.end as usize+
-                                     builder.global_span.lines().as_ref().lines().count());
+        let padding = base_10_length(builder.global_span.lines_covered.end as usize +
+                                     builder.global_span
+                                         .lines()
+                                         .as_ref()
+                                         .lines()
+                                         .count());
 
         let lines = builder.global_span.lines();
-        let iter = lines.as_ref()
-            .lines()
-            .enumerate()
-            .map(|(i, line)| (i + builder.global_span.lines_covered.start as usize, line));
+        let iter =
+            lines.as_ref()
+                .lines()
+                .enumerate()
+                .map(|(i, line)| (i + builder.global_span.lines_covered.start as usize, line));
 
         let mut skipped_streak = 0;
         for (i, line) in iter {
@@ -161,7 +168,7 @@ impl Display for Error {
     }
 }
 
-fn get_span<'a>(ann: &'a ErrorAnnotation) -> &'a Span {
+fn get_span<'a>(ann: &'a DiagnosticAnnotation) -> &'a Span {
     &ann.span
 }
 
@@ -252,9 +259,9 @@ fn test_basic_error() {
     let ::parse::ParseResult { roots, diagnostics } = ::simple_parse(source, &[]);
     assert!(diagnostics.is_empty());
 
-    let error = ErrorBuilder::new("this is the message", roots[0].span())
+    let error = DiagnosticBuilder::new("this is the message", roots[0].span())
         .with_file_name("<anon>")
-        .with_error_level(ErrorLevel::Info)
+        .with_error_level(DiagnosticLevel::Info)
         .build();
 
     println!("{}", error);

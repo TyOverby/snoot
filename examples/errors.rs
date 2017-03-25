@@ -1,7 +1,7 @@
 extern crate snoot;
 
 use snoot::simple_parse;
-use snoot::error::{ErrorBuilder, ErrorLevel};
+use snoot::diagnostic::{DiagnosticBuilder, DiagnosticLevel};
 
 const PROGRAM: &'static str = "
 (define map (lambda (xs f)
@@ -11,16 +11,17 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::ParseResult{roots, diagnostics} = simple_parse(PROGRAM, &[]);
+    let snoot::ParseResult { roots, diagnostics } = simple_parse(PROGRAM, &[]);
     assert!(diagnostics.is_empty());
 
     // Report an error over the entire program
     let span = roots[0].span();
 
-    let error = ErrorBuilder::new("this is the message", span)
+    let error = DiagnosticBuilder::new("this is the message", span)
         .with_file_name("filename.lisp")
-        .with_error_level(ErrorLevel::Error)
+        .with_error_level(DiagnosticLevel::Error)
         .build();
 
     println!("{}", error);
 }
+

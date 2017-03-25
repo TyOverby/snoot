@@ -5,7 +5,7 @@ extern crate itertools;
 
 pub mod token;
 pub mod parse;
-pub mod error;
+pub mod diagnostic;
 
 pub use parse::ParseResult;
 

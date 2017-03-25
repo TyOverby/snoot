@@ -11,7 +11,7 @@ enum ParseStackItem {
     },
 }
 
-pub struct ScopeStack {
+pub(crate) struct ScopeStack {
     stack: Vec<ParseStackItem>,
     string: StrTendril,
 }
@@ -32,7 +32,7 @@ impl ScopeStack {
                         });
     }
 
-    pub fn end(mut self, diagnostics: &mut Vec<Diagnostic>) -> Vec<Sexpr> {
+    pub fn end(mut self, diagnostics: &mut Vec<ParseDiagnostic>) -> Vec<Sexpr> {
         while self.stack.len() != 1 {
             self.close(None, diagnostics);
         }
@@ -67,14 +67,21 @@ impl ScopeStack {
         }
     }
 
-    pub fn close(&mut self, closed_by: Option<(ListType, TokenInfo)>, diagnostics: &mut Vec<Diagnostic>) {
+    pub fn close(&mut self,
+                 closed_by: Option<(ListType, TokenInfo)>,
+                 diagnostics: &mut Vec<ParseDiagnostic>) {
         match (self.stack.pop().unwrap(), closed_by.clone()) {
             (g @ ParseStackItem::Global { .. }, Some((_closed_by_lst_typ, closed_by_tok))) => {
                 self.stack.push(g);
-                diagnostics.push(Diagnostic::ExtraClosing(Span::from_token(&closed_by_tok,
-                                                                           &self.string)));
+                diagnostics.push(ParseDiagnostic::ExtraClosing(Span::from_token(&closed_by_tok,
+                                                                                &self.string)));
             }
-            (ParseStackItem::ListOpening { children, typ, opening }, Some((closed_by_lst_typ, closed_by_tok))) => {
+            (ParseStackItem::ListOpening {
+                 children,
+                 typ,
+                 opening,
+             },
+             Some((closed_by_lst_typ, closed_by_tok))) => {
                 if typ == closed_by_lst_typ {
                     let span = Span::from_spans(&Span::from_token(&opening, &self.string),
                                                 &Span::from_token(&closed_by_tok, &self.string));
@@ -88,16 +95,16 @@ impl ScopeStack {
 
                     self.put(list_sexpr);
                 } else {
-                    let span = Span::from_spans(
-                        &Span::from_token(&opening, &self.string),
-                        &Span::from_token(&closed_by_tok, &self.string));
+                    let span = Span::from_spans(&Span::from_token(&opening, &self.string),
+                                                &Span::from_token(&closed_by_tok, &self.string));
 
-                    diagnostics.push(Diagnostic::WrongClosing{
-                        opening_span: Span::from_token(&opening, &self.string),
-                        closing_span: Span::from_token(&closed_by_tok, &self.string),
-                        expected_list_type: typ,
-                        actual_list_type: closed_by_lst_typ,
-                    });
+                    diagnostics.push(ParseDiagnostic::WrongClosing {
+                                         opening_span: Span::from_token(&opening, &self.string),
+                                         closing_span: Span::from_token(&closed_by_tok,
+                                                                        &self.string),
+                                         expected_list_type: typ,
+                                         actual_list_type: closed_by_lst_typ,
+                                     });
 
                     let list_sexpr = Sexpr::List {
                         list_type: typ,
@@ -111,7 +118,12 @@ impl ScopeStack {
                 }
             }
             (ParseStackItem::Global { .. }, None) => unreachable!(),
-            (ParseStackItem::ListOpening { children, typ, opening }, None) => {
+            (ParseStackItem::ListOpening {
+                 children,
+                 typ,
+                 opening,
+             },
+             None) => {
                 let closed_token = if let Some(chld) = children.last() {
                     chld.last_token().clone()
                 } else {
@@ -130,7 +142,7 @@ impl ScopeStack {
                 };
                 self.put(list_sexpr);
 
-                diagnostics.push(Diagnostic::UnclosedList(span));
+                diagnostics.push(ParseDiagnostic::UnclosedList(span));
             }
         }
     }
