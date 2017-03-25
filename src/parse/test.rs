@@ -5,7 +5,7 @@ use super::*;
 pub fn test_ok(input: &str, expected: Vec<Sexpr>) {
     let tokens = tokenize(input.into(), &[]);
 
-    let ParseResult { roots, diagnostics } = parse(&input.into(), tokens);
+    let Result { roots, diagnostics } = parse(&input.into(), tokens);
     if !diagnostics.is_empty() {
         println!("{:?}", diagnostics);
         assert!(diagnostics.is_empty());

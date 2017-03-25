@@ -1,7 +1,7 @@
 use super::token::*;
-use super::diagnostic::DiagnosticBag;
 use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
 use tendril::StrTendril;
+use ::Result;
 
 mod scopestack;
 pub mod test;
@@ -63,10 +63,6 @@ pub(crate) enum ParseDiagnostic {
     }
 }
 
-pub struct ParseResult {
-    pub roots: Vec<Sexpr>,
-    pub diagnostics: DiagnosticBag,
-}
 
 impl ParseDiagnostic {
     pub fn into_diagnostic(self) -> Diagnostic {
@@ -247,7 +243,7 @@ impl Span {
     }
 }
 
-pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
+pub fn parse<I>(string: &StrTendril, mut tokens: I) -> Result
     where I: Iterator<Item = TokResult<TokenInfo>>
 {
 
@@ -289,7 +285,7 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> ParseResult
 
     let out = scopestack.end(&mut diagnostics);
 
-    ParseResult {
+    Result {
         roots: out,
         diagnostics: diagnostics.into_iter().map(ParseDiagnostic::into_diagnostic).collect(),
     }
