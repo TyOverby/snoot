@@ -24,7 +24,7 @@ pub enum TokError {
     UnclosedString(Span),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TokenInfo {
     pub line_number: usize,
     pub column_number: usize,

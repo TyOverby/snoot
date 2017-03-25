@@ -55,6 +55,12 @@ pub enum Diagnostic {
     UnclosedList(Span),
     UnmatchedListClosing(Span, Span),
     ExtraClosing(Span),
+    WrongClosing {
+        opening_span: Span,
+        closing_span: Span,
+        expected_list_type: ListType,
+        actual_list_type: ListType,
+    }
 }
 
 pub struct ParseResult {
@@ -91,6 +97,21 @@ impl Diagnostic {
                     builder.with_file_name(f)
                 } else { builder };
 
+                builder.with_error_level(ErrorLevel::Error).build()
+            }
+            Diagnostic::WrongClosing {
+                opening_span,
+                closing_span,
+                expected_list_type,
+                actual_list_type,
+            } => {
+                let text = format!("Expected {} but found {}",
+                    expected_list_type.to_string(false),
+                    actual_list_type.to_string(false));
+                let builder = ErrorBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
+                let builder = if let Some(f) = filename {
+                    builder.with_file_name(f)
+                } else { builder };
                 builder.with_error_level(ErrorLevel::Error).build()
             }
         }

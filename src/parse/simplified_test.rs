@@ -19,7 +19,12 @@ enum SimpleSexpr {
 impl<'a> From<Sexpr> for SimpleSexpr {
     fn from(sexpr: Sexpr) -> SimpleSexpr {
         match sexpr {
-            Sexpr::List { list_type, children, span, .. } => {
+            Sexpr::List {
+                list_type,
+                children,
+                span,
+                ..
+            } => {
                 SimpleSexpr::List {
                     opening: list_type.to_string(true),
                     closing: list_type.to_string(false),
@@ -35,9 +40,26 @@ impl<'a> From<Sexpr> for SimpleSexpr {
     }
 }
 
+fn parse_simple_err(string: &str, expected: Vec<SimpleSexpr>, _error: &str) {
+    let string: StrTendril = string.into();
+    let (roots, _diagnostics) = {
+        let tokens = tokenize(string.clone(), &[]);
+        let ParseResult { roots, diagnostics } = parse(&string, tokens);
+        (roots, diagnostics)
+    };
+
+    // let actual = format!("{:?}", diagnostics);
+    // assert_eq!(actual, error);
+
+    for (actual, expected) in roots.into_iter().map(SimpleSexpr::from).zip(expected) {
+        assert_eq!(actual, expected);
+    }
+}
+
 fn parse_simple_ok(string: &str, expected: Vec<SimpleSexpr>) {
     parse_simple_ok_split(string, expected, &[]);
 }
+
 fn parse_simple_ok_split(string: &str, expected: Vec<SimpleSexpr>, splits: &[&str]) {
     let string: StrTendril = string.into();
     let (roots, diagnostics) = {
@@ -145,5 +167,27 @@ fn prop_regression() {
                                                   SimpleSexpr::Ident("10".into())],
                                }],
                           &[":"]);
+}
+
+#[test]
+fn mismatched_list_recovery() {
+    parse_simple_err("(a b { c d)",
+                     vec![SimpleSexpr::List {
+                              opening: "(".into(),
+                              closing: ")".into(),
+                              entire: "(a b { c d)".into(),
+                              children: vec![SimpleSexpr::Ident("a".into()),
+                                             SimpleSexpr::Ident("b".into()),
+                                             SimpleSexpr::List {
+                                                 opening: "{".into(),
+                                                 closing: "}".into(),
+                                                 entire: "{ c d)".into(),
+                                                 children: vec![
+                                                    SimpleSexpr::Ident("c".into()),
+                                                    SimpleSexpr::Ident("d".into()),
+                                                 ],
+                                             }],
+                          }],
+                     "");
 }
 
