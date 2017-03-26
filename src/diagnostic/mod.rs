@@ -1,5 +1,6 @@
 use std::fmt::{self, Display, Formatter, Debug};
 use parse::Span;
+#[cfg(test)]
 use ::Result;
 
 mod diagnostic_bag;
