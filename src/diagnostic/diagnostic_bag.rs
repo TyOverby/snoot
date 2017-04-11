@@ -25,7 +25,7 @@ impl DiagnosticBag {
     pub fn sort(&mut self) {
         use std::cmp::Ord;
         self.diagnostics.sort_by(|e1, e2| e1.0.global_span.cmp(&e2.0.global_span));
-        self.diagnostics.sort_by(|e1, e2| e1.0.filename.cmp(&e2.0.filename));
+        self.diagnostics.sort_by(|e1, e2| e1.0.global_span.file.cmp(&e2.0.global_span.file));
     }
 
     /// Appends another ErrorBag onto this one.
@@ -96,14 +96,6 @@ impl DiagnosticBag {
         self.diagnostics.is_empty()
     }
 
-    /// Sets the filename for all diagnostics in this bag.
-    pub fn set_filename<S: Into<String>>(&mut self, name: S) {
-        let name = name.into();
-        for diag in &mut self.diagnostics {
-            diag.0.filename = Some(name.clone());
-        }
-    }
-
     /// If the bag isn't empty, this will panic with the diagnostic
     /// messages as the panic string.
     pub fn assert_empty(&self) {
@@ -126,6 +118,47 @@ impl DiagnosticBag {
         if self.contains_warnings() {
             panic!("{}", self);
         }
+    }
+
+    /*  severity: DiagnosticSeverity.Warning,
+        range: {
+            start: { line: i, character: index},
+            end: { line: i, character: index + 10 }
+        },
+        message: `${line.substr(index, 10)} should be spelled TypeScript`,
+        source: 'ex'
+    */
+    pub fn to_json(&self) -> ::serde_json::Value {
+        use serde_json::Value;
+
+        let mut all = vec![];
+        for &Diagnostic(ref diagnostic) in &self.diagnostics {
+            let sev = match diagnostic.error_level {
+                DiagnosticLevel::Error => 0,
+                DiagnosticLevel::Warn => 1,
+                DiagnosticLevel::Info => 2,
+                DiagnosticLevel::Custom(_) => 3,
+            };
+
+            let map = json!({
+                "severity": sev,
+                "message": diagnostic.message,
+                "source": "implicit lint",
+                "range": {
+                    "start": {
+                        "line": diagnostic.global_span.lines_covered.start - 1,
+                        "character": diagnostic.global_span.columns.start - 1,
+                    },
+                    "end": {
+                        "line": diagnostic.global_span.lines_covered.end - 1,
+                        "character": diagnostic.global_span.columns.end - 1,
+                    },
+                }
+            });
+            all.push(map);
+        }
+
+        Value::Array(all)
     }
 }
 

@@ -44,7 +44,7 @@ fn parse_simple_err(string: &str, expected: Vec<SimpleSexpr>, _error: &str) {
     let string: StrTendril = string.into();
     let (roots, _diagnostics) = {
         let tokens = tokenize(string.clone(), &[]);
-        let Result { roots, diagnostics } = parse(&string, tokens);
+        let Result { roots, diagnostics } = parse(&string, tokens, None);
         (roots, diagnostics)
     };
 
@@ -64,7 +64,7 @@ fn parse_simple_ok_split(string: &str, expected: Vec<SimpleSexpr>, splits: &[&st
     let string: StrTendril = string.into();
     let (roots, diagnostics) = {
         let tokens = tokenize(string.clone(), splits);
-        let Result { roots, diagnostics } = parse(&string, tokens);
+        let Result { roots, diagnostics } = parse(&string, tokens, None);
         (roots, diagnostics)
     };
 

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::token::*;
 use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
 use tendril::StrTendril;
@@ -24,6 +26,7 @@ pub struct Span {
     pub(crate) columns: StartEnd,
 
     pub(crate) full_text: StrTendril,
+    pub(crate) file: Option<Rc<String>>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -105,6 +108,7 @@ impl Span {
     pub fn empty() -> Span {
         Span {
             full_text: "".into(),
+            file: None,
 
             text_bytes: StartEnd {start: 0, end: 0},
             lines_bytes: StartEnd { start: 0, end: 0},
@@ -123,7 +127,7 @@ impl Span {
         self.full_text.subtendril(start, end - start)
     }
 
-    pub fn from_token(token: &TokenInfo, string: &StrTendril) -> Span {
+    pub fn from_token(token: &TokenInfo, string: &StrTendril, file: &Option<Rc<String>>) -> Span {
         let chars = string.subtendril(token.byte_offset as u32, token.length).len();
         let bytes = token.length;
 
@@ -132,6 +136,7 @@ impl Span {
         assert!(end_line_pos >= start_line_pos);
 
         Span {
+            file: file.clone(),
             full_text: string.clone(),
             text_bytes: StartEnd {
                 start: token.byte_offset as u32,
@@ -163,10 +168,11 @@ impl Span {
         let start_line_pos = find_newline(string.as_bytes(), start.text_bytes.start, -1);
         let end_line_pos = find_newline(string.as_bytes(), end.text_bytes.end, 1);
         assert!(end_line_pos >= start_line_pos);
+        debug_assert!(start.file == end.file);
 
         Span {
-
             full_text: start.full_text.clone(),
+            file: start.file.clone(),
             text_bytes: StartEnd {
                 start: start.text_bytes.start,
                 end: end.text_bytes.end,
@@ -188,12 +194,12 @@ impl Span {
     }
 }
 
-pub fn parse<I>(string: &StrTendril, mut tokens: I) -> Result
+pub fn parse<I>(string: &StrTendril, mut tokens: I, file: Option<String>) -> Result
     where I: Iterator<Item = TokResult<TokenInfo>>
 {
-
+    let file = file.map(Rc::new);
     let mut diagnostics = vec![];
-    let mut scopestack = ScopeStack::new(string.clone());
+    let mut scopestack = ScopeStack::new(string.clone(), &file);
 
     loop {
         let token = match tokens.next() {
@@ -207,11 +213,11 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I) -> Result
 
         match token.typ {
             TokenType::String => {
-                let span = Span::from_token(&token, string);
+                let span = Span::from_token(&token, string, &file);
                 scopestack.put(Sexpr::String(token, span));
             }
             TokenType::Atom => {
-                let span = Span::from_token(&token, string);
+                let span = Span::from_token(&token, string, &file);
                 scopestack.put(Sexpr::Terminal(token, span));
             }
             // TODO

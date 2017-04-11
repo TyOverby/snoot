@@ -5,7 +5,7 @@ use super::*;
 pub fn test_ok(input: &str, expected: Vec<Sexpr>) {
     let tokens = tokenize(input.into(), &[]);
 
-    let Result { roots, diagnostics } = parse(&input.into(), tokens);
+    let Result { roots, diagnostics } = parse(&input.into(), tokens, None);
     if !diagnostics.is_empty() {
         println!("{:?}", diagnostics);
         assert!(diagnostics.is_empty());
@@ -25,6 +25,7 @@ fn single_ident() {
                                  },
                                  Span {
                                      full_text: "foo".into(),
+                                     file: None,
                                      text_bytes: StartEnd { start: 0, end: 3 },
                                      lines_bytes: StartEnd { start: 0, end: 3 },
                                      lines_covered: StartEnd { start: 1, end: 1 },
@@ -44,6 +45,7 @@ fn two_idents() {
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
+                                     file: None,
                                      text_bytes: StartEnd { start: 0, end: 3 },
                                      lines_bytes: StartEnd { start: 0, end: 7 },
                                      lines_covered: StartEnd { start: 1, end: 1 },
@@ -58,6 +60,7 @@ fn two_idents() {
                                  },
                                  Span {
                                      full_text: "foo bar".into(),
+                                     file: None,
                                      text_bytes: StartEnd { start: 4, end: 7 },
                                      lines_bytes: StartEnd { start: 0, end: 7 },
                                      lines_covered: StartEnd { start: 1, end: 1 },
@@ -87,6 +90,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         file: None,
                          full_text: "()".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
@@ -114,6 +118,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         file: None,
                          full_text: "{}".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },
@@ -141,6 +146,7 @@ fn parens() {
 
                      children: vec![],
                      span: Span {
+                         file: None,
                          full_text: "[]".into(),
                          text_bytes: StartEnd { start: 0, end: 2 },
                          lines_bytes: StartEnd { start: 0, end: 2 },

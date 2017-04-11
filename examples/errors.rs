@@ -11,14 +11,13 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::Result { roots, diagnostics } = simple_parse(PROGRAM, &[]);
+    let snoot::Result { roots, diagnostics } = simple_parse(PROGRAM, &[], Some("filename.lisp"));
     assert!(diagnostics.is_empty());
 
     // Report an error over the entire program
     let span = roots[0].span();
 
     let error = DiagnosticBuilder::new("this is the message", span)
-        .with_file_name("filename.lisp")
         .with_error_level(DiagnosticLevel::Error)
         .build();
 

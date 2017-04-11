@@ -27,7 +27,6 @@ pub struct DiagnosticBuilder {
 
     // optional
     pub min_gap: Option<usize>,
-    pub filename: Option<String>,
 }
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
@@ -57,18 +56,12 @@ impl DiagnosticBuilder {
             padding: 2,
 
             min_gap: None,
-            filename: None,
             error_level: DiagnosticLevel::Error,
         }
     }
 
     pub fn with_error_level(mut self, level: DiagnosticLevel) -> DiagnosticBuilder {
         self.error_level = level;
-        self
-    }
-
-    pub fn with_file_name<T: Into<String>>(mut self, name: T) -> DiagnosticBuilder {
-        self.filename = Some(name.into());
         self
     }
 
@@ -115,7 +108,7 @@ impl Display for Diagnostic {
         writeln!(f, "{}: {}", builder.error_level.as_str(), builder.message)?;
 
         // File, line number, column number information
-        if let &Some(ref file) = &builder.filename {
+        if let &Some(ref file) = &builder.global_span.file {
             writeln!(f,
                      " --> {}:{}:{}",
                      file,
@@ -258,11 +251,10 @@ fn test_basic_error() {
             (map (cdr xs) f)))))
 "#;
 
-    let Result { roots, diagnostics } = ::simple_parse(source, &[]);
+    let Result { roots, diagnostics } = ::simple_parse(source, &[], Some("<anon>"));
     assert!(diagnostics.is_empty());
 
     let error = DiagnosticBuilder::new("this is the message", roots[0].span())
-        .with_file_name("<anon>")
         .with_error_level(DiagnosticLevel::Info)
         .build();
 

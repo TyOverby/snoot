@@ -1,4 +1,5 @@
 use super::*;
+use std::rc::Rc;
 use super::super::token::TokenInfo;
 use tendril::StrTendril;
 
@@ -14,13 +15,15 @@ enum ParseStackItem {
 pub(crate) struct ScopeStack {
     stack: Vec<ParseStackItem>,
     string: StrTendril,
+    file: Option<Rc<String>>,
 }
 
 impl ScopeStack {
-    pub fn new(string: StrTendril) -> ScopeStack {
+    pub fn new(string: StrTendril, file: &Option<Rc<String>>) -> ScopeStack {
         ScopeStack {
             stack: vec![ParseStackItem::Global { children: vec![] }],
             string: string,
+            file: file.clone(),
         }
     }
 
@@ -74,7 +77,7 @@ impl ScopeStack {
             (g @ ParseStackItem::Global { .. }, Some((_closed_by_lst_typ, closed_by_tok))) => {
                 self.stack.push(g);
                 diagnostics.push(ParseDiagnostic::ExtraClosing(Span::from_token(&closed_by_tok,
-                                                                                &self.string)));
+                                                                                &self.string, &self.file)));
             }
             (ParseStackItem::ListOpening {
                  children,
@@ -83,8 +86,8 @@ impl ScopeStack {
              },
              Some((closed_by_lst_typ, closed_by_tok))) => {
                 if typ == closed_by_lst_typ {
-                    let span = Span::from_spans(&Span::from_token(&opening, &self.string),
-                                                &Span::from_token(&closed_by_tok, &self.string));
+                    let span = Span::from_spans(&Span::from_token(&opening, &self.string, &self.file),
+                                                &Span::from_token(&closed_by_tok, &self.string, &self.file));
                     let list_sexpr = Sexpr::List {
                         list_type: typ,
                         opening_token: opening,
@@ -95,13 +98,13 @@ impl ScopeStack {
 
                     self.put(list_sexpr);
                 } else {
-                    let span = Span::from_spans(&Span::from_token(&opening, &self.string),
-                                                &Span::from_token(&closed_by_tok, &self.string));
+                    let span = Span::from_spans(&Span::from_token(&opening, &self.string, &self.file),
+                                                &Span::from_token(&closed_by_tok, &self.string, &self.file));
 
                     diagnostics.push(ParseDiagnostic::WrongClosing {
-                                         opening_span: Span::from_token(&opening, &self.string),
+                                         opening_span: Span::from_token(&opening, &self.string, &self.file),
                                          closing_span: Span::from_token(&closed_by_tok,
-                                                                        &self.string),
+                                                                        &self.string, &self.file),
                                          expected_list_type: typ,
                                          actual_list_type: closed_by_lst_typ,
                                      });
@@ -130,8 +133,8 @@ impl ScopeStack {
                     opening.clone()
                 };
 
-                let span = Span::from_spans(&Span::from_token(&opening, &self.string),
-                                            &Span::from_token(&closed_token, &self.string));
+                let span = Span::from_spans(&Span::from_token(&opening, &self.string, &self.file),
+                                            &Span::from_token(&closed_token, &self.string, &self.file));
 
                 let list_sexpr = Sexpr::List {
                     opening_token: opening,

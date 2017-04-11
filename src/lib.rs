@@ -1,7 +1,8 @@
-#![feature(pub_restricted)]
 extern crate tendril;
 extern crate regex;
 extern crate itertools;
+#[macro_use]
+extern crate serde_json;
 
 pub mod token;
 pub mod parse;
@@ -27,8 +28,8 @@ pub struct Result {
 ///
 /// `splitters` is a list of strings that should be split on the tokenization level.
 /// As an example: [":"] will make "foo:bar" split into ["foo", ":", "bar"] during tokenization.
-pub fn simple_parse<'a, S: Into<tendril::StrTendril>>(string: S, splitters: &'a[&'a str]) -> Result {
+pub fn simple_parse<'a, S: Into<tendril::StrTendril>>(string: S, splitters: &'a[&'a str], file: Option<&'a str>) -> Result {
     let tendril = string.into();
     let tokens = token::tokenize(tendril.clone(), splitters);
-    parse::parse(&tendril, tokens)
+    parse::parse(&tendril, tokens, file.map(String::from))
 }
