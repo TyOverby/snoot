@@ -7,7 +7,8 @@ const PROGRAM: &'static str = "
 ";
 
 fn main() {
-    let snoot::Result{roots, diagnostics} = snoot::simple_parse(PROGRAM, &[], Some("filename.lisp"));
+    let snoot::Result { roots, diagnostics } =
+        snoot::simple_parse(PROGRAM, &[], Some("filename.lisp"));
     assert!(diagnostics.is_empty());
     println!("{:#?}", roots);
 }

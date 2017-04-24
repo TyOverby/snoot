@@ -45,13 +45,14 @@ impl ListType {
     #[allow(dead_code)]
     pub(crate) fn to_string(&self, open: bool) -> String {
         match (*self, open) {
-            (ListType::Paren, true) => "(",
-            (ListType::Brace, true) => "{",
-            (ListType::Bracket, true) => "[",
-            (ListType::Paren, false) => ")",
-            (ListType::Brace, false) => "}",
-            (ListType::Bracket, false) => "]",
-        }.into()
+                (ListType::Paren, true) => "(",
+                (ListType::Brace, true) => "{",
+                (ListType::Bracket, true) => "[",
+                (ListType::Paren, false) => ")",
+                (ListType::Brace, false) => "}",
+                (ListType::Bracket, false) => "]",
+            }
+            .into()
     }
 }
 
@@ -86,8 +87,8 @@ impl<'a> Iterator for TokenIterator<'a> {
                 // TODO: is this wrong?
                 let bytes_consumed = bytes_consumed as u32;
                 self.remaining =
-                    self.remaining.subtendril(bytes_consumed,
-                                              self.remaining.len32() - bytes_consumed);
+                    self.remaining
+                        .subtendril(bytes_consumed, self.remaining.len32() - bytes_consumed);
 
                 r
             }
@@ -174,10 +175,14 @@ mod test {
     use super::*;
 
     fn all_ok(string: &str) -> Vec<TokenInfo> {
-        tokenize(string.into(), &[]).collect::<Result<_, _>>().unwrap()
+        tokenize(string.into(), &[])
+            .collect::<Result<_, _>>()
+            .unwrap()
     }
     fn all_ok_split<'a, 'b>(string: &'a str, sp: &'b [&'b str]) -> Vec<TokenInfo> {
-        tokenize(string.into(), sp).collect::<Result<_, _>>().unwrap()
+        tokenize(string.into(), sp)
+            .collect::<Result<_, _>>()
+            .unwrap()
     }
 
     #[test]
@@ -448,4 +453,3 @@ mod test {
                         }]);
     }
 }
-

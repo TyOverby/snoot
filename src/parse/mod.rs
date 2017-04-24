@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::token::*;
 use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
 use tendril::StrTendril;
-use ::{Result, Sexpr};
+use {Result, Sexpr};
 
 mod scopestack;
 pub mod test;
@@ -31,7 +31,10 @@ pub struct Span {
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum SexprKind {
-    List, UnaryOperator, Terminal, String
+    List,
+    UnaryOperator,
+    Terminal,
+    String,
 }
 
 
@@ -45,7 +48,7 @@ pub(crate) enum ParseDiagnostic {
         closing_span: Span,
         expected_list_type: ListType,
         actual_list_type: ListType,
-    }
+    },
 }
 
 
@@ -72,7 +75,8 @@ impl ParseDiagnostic {
                 let text = format!("Expected {} but found {}",
                     expected_list_type.to_string(false),
                     actual_list_type.to_string(false));
-                let builder = DiagnosticBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
+                let builder =
+                    DiagnosticBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
                 builder.with_error_level(DiagnosticLevel::Error).build()
             }
         }
@@ -84,7 +88,7 @@ fn find_newline(t: &[u8], pos: u32, direction: isize) -> u32 {
     // We're searching backwards and we've hit the start of the buffer
     if pos == 0 && direction == -1 {
         if t[0] == b'\n' {
-            return 1
+            return 1;
         } else {
             return 0;
         }
@@ -104,31 +108,48 @@ fn find_newline(t: &[u8], pos: u32, direction: isize) -> u32 {
     return find_newline(t, ((pos as isize) + (direction as isize)) as u32, direction);
 }
 
+impl <'a> ::std::iter::FromIterator<&'a Span> for Span {
+    fn from_iter<I: IntoIterator<Item=&'a Span>>(iter: I) -> Span {
+        let mut base = None;
+
+        for s in iter {
+            base = Some(match base.take() {
+                Some(b) => Span::from_spans(&b, s),
+                None => s.clone()
+            })
+        }
+
+        base.unwrap_or_else(Span::empty)
+    }
+}
+
 impl Span {
     pub fn empty() -> Span {
         Span {
             full_text: "".into(),
             file: None,
 
-            text_bytes: StartEnd {start: 0, end: 0},
-            lines_bytes: StartEnd { start: 0, end: 0},
-            lines_covered: StartEnd { start: 0, end: 0},
+            text_bytes: StartEnd { start: 0, end: 0 },
+            lines_bytes: StartEnd { start: 0, end: 0 },
+            lines_covered: StartEnd { start: 0, end: 0 },
             columns: StartEnd { start: 0, end: 0 },
         }
     }
 
     pub fn lines(&self) -> StrTendril {
-        let StartEnd {start, end} = self.lines_bytes;
+        let StartEnd { start, end } = self.lines_bytes;
         self.full_text.subtendril(start, end - start)
     }
 
     pub fn text(&self) -> StrTendril {
-        let StartEnd {start, end} = self.text_bytes;
+        let StartEnd { start, end } = self.text_bytes;
         self.full_text.subtendril(start, end - start)
     }
 
     pub fn from_token(token: &TokenInfo, string: &StrTendril, file: &Option<Rc<String>>) -> Span {
-        let chars = string.subtendril(token.byte_offset as u32, token.length).len();
+        let chars = string
+            .subtendril(token.byte_offset as u32, token.length)
+            .len();
         let bytes = token.length;
 
         let start_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, -1);
@@ -153,7 +174,7 @@ impl Span {
             columns: StartEnd {
                 start: token.column_number as u32,
                 end: token.column_number as u32 + chars as u32,
-            }
+            },
         }
     }
 
@@ -188,7 +209,7 @@ impl Span {
             columns: StartEnd {
                 start: start.columns.start,
                 end: end.columns.end,
-            }
+            },
         }
 
     }
@@ -238,7 +259,10 @@ pub fn parse<I>(string: &StrTendril, mut tokens: I, file: Option<String>) -> Res
 
     Result {
         roots: out,
-        diagnostics: diagnostics.into_iter().map(ParseDiagnostic::into_diagnostic).collect(),
+        diagnostics: diagnostics
+            .into_iter()
+            .map(ParseDiagnostic::into_diagnostic)
+            .collect(),
     }
 }
 

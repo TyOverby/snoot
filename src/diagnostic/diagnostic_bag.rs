@@ -24,8 +24,10 @@ impl DiagnosticBag {
     /// The sort order is by filename (primary) and by file location (secondary)
     pub fn sort(&mut self) {
         use std::cmp::Ord;
-        self.diagnostics.sort_by(|e1, e2| e1.0.global_span.cmp(&e2.0.global_span));
-        self.diagnostics.sort_by(|e1, e2| e1.0.global_span.file.cmp(&e2.0.global_span.file));
+        self.diagnostics
+            .sort_by(|e1, e2| e1.0.global_span.cmp(&e2.0.global_span));
+        self.diagnostics
+            .sort_by(|e1, e2| e1.0.global_span.file.cmp(&e2.0.global_span.file));
     }
 
     /// Appends another ErrorBag onto this one.
@@ -160,6 +162,10 @@ impl DiagnosticBag {
 
         Value::Array(all)
     }
+
+    pub fn iter(&self) -> ::std::slice::Iter<Diagnostic> {
+        self.diagnostics.iter()
+    }
 }
 
 impl FromIterator<Diagnostic> for DiagnosticBag {
@@ -184,4 +190,3 @@ impl Debug for DiagnosticBag {
         write!(formatter, "{}", self)
     }
 }
-

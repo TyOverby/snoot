@@ -1,7 +1,7 @@
+#[macro_use]
 extern crate snoot;
 
 use snoot::simple_parse;
-use snoot::diagnostic::{DiagnosticBuilder, DiagnosticLevel};
 
 const PROGRAM: &'static str = "
 (define map (lambda (xs f)
@@ -17,10 +17,7 @@ fn main() {
     // Report an error over the entire program
     let span = roots[0].span();
 
-    let error = DiagnosticBuilder::new("this is the message", span)
-        .with_error_level(DiagnosticLevel::Error)
-        .build();
+    let error = diagnostic!(span, "this is the message");
 
     println!("{}", error);
 }
-

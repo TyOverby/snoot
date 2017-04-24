@@ -1,10 +1,54 @@
 use std::fmt::{self, Display, Formatter, Debug};
 use parse::Span;
 #[cfg(test)]
-use ::Result;
+use Result;
 
 mod diagnostic_bag;
 pub use self::diagnostic_bag::DiagnosticBag;
+
+#[macro_export]
+macro_rules! diagnostic {
+    (ERROR, $span:expr, $fmt:expr) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Error;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+    }};
+    (ERROR, $span:expr, $fmt:expr, $($arg:tt)*) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Error;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+    }};
+    (INFO, $span:expr, $fmt:expr) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Info;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+    }};
+    (INFO, $span:expr, $fmt:expr, $($arg:tt)*) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Info;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+    }};
+    (WARN, $span:expr, $fmt:expr) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Warn;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+    }};
+    (WARN, $span:expr, $fmt:expr, $($arg:tt)*) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Warn;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+    }};
+    (CUSTOM($custom:expr), $span:expr, $fmt:expr) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Custom($custom);
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+    }};
+    (CUSTOM($custom:expr), $span:expr, $fmt:expr, $($arg:tt)*) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Custom($custom);
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+    }};
+    ($span:expr, $fmt:expr) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Error;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+    }};
+    ($span:expr, $fmt:expr, $($arg:tt)*) => {{
+        let error_level = $crate::diagnostic::DiagnosticLevel::Error;
+        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+    }};
+}
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
 pub struct Diagnostic(pub(crate) DiagnosticBuilder);
@@ -42,7 +86,6 @@ impl DiagnosticLevel {
             &DiagnosticLevel::Warn => "warn",
             &DiagnosticLevel::Error => "error",
             &DiagnosticLevel::Custom(ref s) => s,
-
         }
     }
 }
@@ -122,15 +165,12 @@ impl Display for Diagnostic {
         }
 
         let padding = base_10_length(builder.global_span.lines_covered.end as usize +
-                                     builder.global_span
-                                         .lines()
-                                         .as_ref()
-                                         .lines()
-                                         .count());
+                                     builder.global_span.lines().as_ref().lines().count());
 
         let lines = builder.global_span.lines();
         let iter =
-            lines.as_ref()
+            lines
+                .as_ref()
                 .lines()
                 .enumerate()
                 .map(|(i, line)| (i + builder.global_span.lines_covered.start as usize, line));
@@ -242,6 +282,27 @@ fn test_base_10_length() {
     assert_eq!(base_10_length(100), 3);
 }
 
+#[test]
+fn diagnostic_macros() {
+    let source = r#"(define map (lambda (xs f)
+  (if (nil xs) xs
+      (cons (f (car xs))
+            (map (cdr xs) f)))))
+"#;
+
+    let Result { roots, diagnostics } = ::simple_parse(source, &[], Some("<anon>"));
+    let span = &roots[0].span();
+    assert!(diagnostics.is_empty());
+
+    let error = DiagnosticBuilder::new("this is the message 5", span)
+        .with_error_level(DiagnosticLevel::Error)
+        .build();
+
+    let macro_error = diagnostic!(ERROR, span, "this is the message {}", 5);
+
+    assert_eq!(error, macro_error);
+}
+
 
 #[test]
 fn test_basic_error() {
@@ -267,4 +328,3 @@ fn test_basic_error() {
 3 |       (cons (f (car xs))
 4 |             (map (cdr xs) f)))))"#);
 }
-

@@ -1,6 +1,6 @@
 [package]
 name = "snoot"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ty Overby <ty@pre-alpha.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/TyOverby/snoot"
@@ -10,4 +10,8 @@ description = "The best s-expression parser this side of the Mississippi!"
 tendril = "0.2.3"
 regex = "0.2.1"
 itertools = "0.5.9"
+
 serde_json = "0.9.*"
+serde_derive = { git = "https://github.com/serde-rs/serde", branch = "master" }
+serde = { git = "https://github.com/serde-rs/serde", branch = "master" }
+
