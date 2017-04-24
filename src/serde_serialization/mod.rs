@@ -8,7 +8,7 @@ use serde;
 use serde::de::Visitor;
 use super::Sexpr;
 use super::parse::Span;
-use super::diagnostic::DiagnosticBag;
+use super::diagnostic::{DiagnosticBag, Diagnostic};
 
 pub enum DeserializeResult<T> {
     AllGood(T),
@@ -98,6 +98,11 @@ fn wrap_visitor_result<T>(result: Result<T, DeserError>, span: &Span, bag: &mut 
     }
 }
 
+fn add<T>(bag: &mut DiagnosticBag, diagnostic: Diagnostic) -> Result<T, DeserError> {
+    bag.add(diagnostic);
+    Err(DeserError::DiagnosticAdded)
+}
+
 macro_rules! deserialize_value {
     ($this: expr, $visitor: expr, $func: ident, $typ: ty, $parser: path, $descr: expr) => {{
         let error = |span: &Span| diagnostic!(span, "expected to parse {} but found {}", $descr, span.text());
@@ -185,10 +190,49 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        unimplemented!();
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            if children.len() != 0 {
+                let first = &children[0];
+                if let &Sexpr::Terminal(_, ref span) = first {
+                    if span.text().as_ref() == "some" {
+                        if children.len() == 2 {
+                            visitor.visit_some(SexprDeserializer{sexpr: &children[1], bag: self.bag})
+                        } else {
+                            add(self.bag, diagnostic!(span, "`some` should have exactly 1 argument"))
+                        }
+                    } else if span.text().as_ref() == "none" {
+                        if children.len() == 1 {
+                            visitor.visit_none()
+                        } else {
+                            add(self.bag, diagnostic!(span, "`none` should not have any arguments"))
+                        }
+                    } else {
+                        add(self.bag, diagnostic!(span, "expected terminal `some` or `none`, found {}", span.text()))
+                    }
+                } else {
+                    add(self.bag, diagnostic!(self.sexpr.span(), "expected terminal `some` or `none`, found {:?}", first.kind()))
+                }
+            } else {
+                add(self.bag, diagnostic!(self.sexpr.span(), "expected option, found empty tuple"))
+            }
+        } else {
+            add(self.bag, diagnostic!(self.sexpr.span(), "expected option, found `{:?}`", self.sexpr.kind()))
+        }
     }
 
-    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {unimplemented!()}
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            if children.len() == 0 {
+                wrap_visitor_result(visitor.visit_unit(), self.sexpr.span(), self.bag)
+            } else {
+                self.bag.add(diagnostic!(self.sexpr.span(), "expected unit tuple, found {} items", children.len()));
+                Err(DeserError::DiagnosticAdded)
+            }
+        } else {
+            self.bag.add(diagnostic!(self.sexpr.span(), "expected unit tuple"));
+            Err(DeserError::DiagnosticAdded)
+        }
+    }
 
     fn deserialize_unit_struct<V>(self,
                                   name: &'static str,
@@ -196,7 +240,7 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                                   -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        unimplemented!();
+        self.deserialize_tuple_struct(name, 0, visitor)
     }
     fn deserialize_newtype_struct<V>(self,
                                      name: &'static str,
@@ -204,7 +248,7 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                                      -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        unimplemented!();
+        self.deserialize_tuple_struct(name, 1, visitor)
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {

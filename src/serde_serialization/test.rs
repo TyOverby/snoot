@@ -92,6 +92,7 @@ fn test_struct_deserialization() {
 #[test]
 fn test_tuple_deserialization() {
     run_test_good("(true 5)", (true, 5));
+    run_test_good("()", ());
 }
 
 #[test]
@@ -100,4 +101,47 @@ fn test_tuple_struct_deserialization() {
     #[serde(rename="foo")]
     pub struct Foo(bool, i32, bool);
     run_test_good("(foo true 5 false)", Foo(true, 5, false));
+}
+
+#[test]
+fn test_deserialize_newtype_structu() {
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[serde(rename="foo")]
+    pub struct Foo(bool);
+    run_test_good("(foo true)", Foo(true));
+    run_test_good("(foo false)", Foo(false));
+}
+
+#[test]
+fn test_deserialize_unit_structure() {
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[serde(rename="foo")]
+    pub struct Foo();
+    run_test_good("(foo)", Foo());
+    run_test_good("(foo)", Foo());
+
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[serde(rename="bar")]
+    pub struct Bar{};
+    run_test_good("(bar)", Bar{});
+    run_test_good("(bar)", Bar{});
+}
+
+#[test]
+fn test_deserialize_option() {
+    run_test_good("(none)", None as Option<i32>);
+    run_test_good("(some 32)", Some(32));
+}
+
+#[test]
+fn test_default_field() {
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[serde(rename="foo", rename_all="kebab-case")]
+    struct Foo {
+        my_integer: i32,
+        is_good: Option<bool>,
+    }
+
+    run_test_good("(foo my-integer: 5)", Foo{my_integer: 5, is_good: None});
+    run_test_good("(foo my-integer: 5 is-good: (some true))", Foo{my_integer: 5, is_good: Some(true)});
 }
