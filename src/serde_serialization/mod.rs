@@ -16,15 +16,12 @@ pub enum DeserializeResult<T> {
     CouldntRecover(DiagnosticBag),
 }
 
-pub fn deserialize<'sexpr, T: serde::Deserialize<'sexpr>>(sexprs: &'sexpr[Sexpr]) -> DeserializeResult<T> {
+pub fn deserialize<'sexpr, T: serde::Deserialize<'sexpr>>(sexpr: &'sexpr Sexpr) -> DeserializeResult<T> {
     let mut bag = DiagnosticBag::new();
-    let span: Span = sexprs.iter().map(|s| s.span()).collect();
     let res = {
         let deserializer = SexprDeserializer {
-            sexprs: sexprs,
+            sexpr: sexpr,
             bag: &mut bag,
-            persist: true,
-            span: span,
         };
 
         T::deserialize(deserializer)
@@ -51,28 +48,18 @@ enum DeserError {
 }
 
 struct SexprDeserializer<'sexpr, 'bag> {
-    sexprs: &'sexpr[Sexpr],
+    sexpr: &'sexpr Sexpr,
     bag: &'bag mut DiagnosticBag,
-    span: Span,
-    persist: bool,
 }
 
-impl <'sexpr, 'bag> SexprDeserializer<'sexpr, 'bag> {
-    fn with_same<'a>(&'a mut self) -> SexprDeserializer<'a, 'a> {
-        SexprDeserializer {
-            sexprs: self.sexprs,
-            bag: self.bag,
-            span: self.span.clone(),
-            persist: self.persist,
-        }
-    }
-    fn with_sexprs<'a>(&'a mut self, sexprs: &'sexpr[Sexpr], newspan: Span) -> SexprDeserializer<'a, 'a> {
-        SexprDeserializer {
-            sexprs: sexprs,
-            bag: self.bag,
-            span: newspan,
-            persist: self.persist,
-        }
+struct SeqDeserializer<'sexpr, 'bag> {
+    sexprs: &'sexpr[Sexpr],
+    bag: &'bag mut DiagnosticBag,
+}
+
+impl <'sexpr, 'bag> SeqDeserializer<'sexpr, 'bag> {
+    fn all_spans(&self) -> Span {
+        self.sexprs.iter().map(|x|x.span()).collect()
     }
 }
 
@@ -114,19 +101,7 @@ fn wrap_visitor_result<T>(result: Result<T, DeserError>, span: &Span, bag: &mut 
 macro_rules! deserialize_value {
     ($this: expr, $visitor: expr, $func: ident, $typ: ty, $parser: path, $descr: expr) => {{
         let error = |span: &Span| diagnostic!(span, "expected to parse {} but found {}", $descr, span.text());
-        let sexpr = match $this.sexprs.len() {
-            0 => {
-                $this.bag.add(diagnostics::nothing_found(&$this.span, $descr));
-                return wrap_visitor_result($visitor.$func(Default::default()), &$this.span, &mut $this.bag);
-            }
-            1 => &$this.sexprs[0],
-            n => {
-                $this.bag.add(diagnostics::multiple_values_found(&$this.span, $descr));
-                &$this.sexprs[0]
-            }
-        };
-
-        if let &Sexpr::Terminal(_, ref span) = sexpr {
+        if let &Sexpr::Terminal(_, ref span) = $this.sexpr {
             let text = span.text();
             let text2 = text.as_ref();
             let x: Result<$typ, _> = $parser(text2);
@@ -138,8 +113,8 @@ macro_rules! deserialize_value {
                 }
             }
         } else {
-            $this.bag.add(error(sexpr.span()));
-            wrap_visitor_result($visitor.$func(Default::default()), sexpr.span(), &mut $this.bag)
+            $this.bag.add(error($this.sexpr.span()));
+            wrap_visitor_result($visitor.$func(Default::default()), $this.sexpr.span(), &mut $this.bag)
         }
     }
 }}
@@ -232,33 +207,22 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
         unimplemented!();
     }
 
-    fn deserialize_seq<V>(mut self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        wrap_visitor_result(visitor.visit_seq(self.with_same()), &self.span, &mut self.bag)
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            wrap_visitor_result(visitor.visit_seq(SeqDeserializer{sexprs: children, bag: self.bag}), &self.sexpr.span(), self.bag)
+        } else {
+            self.bag.add(diagnostic!(self.sexpr.span(), "expected list, found {:?}", self.sexpr.kind()));
+            return Err(DeserError::DiagnosticAdded);
+        }
     }
-/*
-    fn deserialize_seq_fixed_size<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
-        where V: Visitor<'de>
-    {
-        unimplemented!();
-    }
-*/
+
     fn deserialize_tuple<V>(mut self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        let child = if self.sexprs.len() == 0 {
-            self.bag.add(diagnostics::nothing_found(&self.span, "tuple"));
-            return Err(DeserError::DiagnosticAdded);
-        } else if self.sexprs.len() > 1 {
-            self.bag.add(diagnostics::multiple_values_found(&self.span, "tuple"));
-            &self.sexprs[0]
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            wrap_visitor_result(visitor.visit_seq(SeqDeserializer{sexprs: children, bag: self.bag}), &self.sexpr.span(), self.bag)
         } else {
-            &self.sexprs[0]
-        };
-
-        if let &Sexpr::List{ref children, ref span, ..} = child {
-            wrap_visitor_result(visitor.visit_seq(self.with_sexprs(children, span.clone())), &self.span, &mut self.bag)
-        } else {
-            self.bag.add(diagnostic!(&child.span(), "expected list, found {:?}", child.kind()));
+            self.bag.add(diagnostic!(self.sexpr.span(), "expected list, found {:?}", self.sexpr.kind()));
             return Err(DeserError::DiagnosticAdded);
         }
     }
@@ -270,17 +234,7 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
         where V: Visitor<'de>
     {
         let struct_descr = || format!("tuple struct {}", name);
-        let child = if self.sexprs.len() == 0 {
-            self.bag.add(diagnostics::nothing_found(&self.span, struct_descr()));
-            return Err(DeserError::DiagnosticAdded);
-        } else if self.sexprs.len() > 1 {
-            self.bag.add(diagnostics::multiple_values_found(&self.span, struct_descr()));
-            &self.sexprs[0]
-        } else {
-            &self.sexprs[0]
-        };
-
-        if let &Sexpr::List{ref children, ref span, ..} = child {
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
             if children.len() == 0 {
                 self.bag.add(diagnostics::nothing_found(span, struct_descr()));
                 Err(DeserError::DiagnosticAdded)
@@ -290,7 +244,11 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                         self.bag.add(diagnostic!(span, "expected tuple struct name `{}`, but found `{}`", name, span.text()));
                         Err(DeserError::DiagnosticAdded)
                     } else {
-                        wrap_visitor_result(visitor.visit_seq(self.with_sexprs(&children[1..], span.clone())), &self.span, &mut self.bag)
+                        let vr = {
+                            let seqd = SeqDeserializer{ sexprs: &children[1..], bag: self.bag};
+                            visitor.visit_seq(seqd)
+                        };
+                        wrap_visitor_result(vr, span, self.bag)
                     }
                 } else {
                     self.bag.add(diagnostic!(span, "expected tuple struct name `{}`, but found `{}`", name, span.text()));
@@ -298,13 +256,22 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                 }
             }
         } else {
-            self.bag.add(diagnostic!(&child.span(), "expected list, found {:?}", child.kind()));
+            self.bag.add(diagnostic!(&self.sexpr.span(), "expected list, found {:?}", self.sexpr.kind()));
             return Err(DeserError::DiagnosticAdded);
         }
     }
 
-    fn deserialize_map<V>(mut self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        wrap_visitor_result(visitor.visit_map(self.with_same()), &self.span, &mut self.bag)
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            let vr = {
+                let map_deser = SeqDeserializer{sexprs: children, bag: self.bag};
+                visitor.visit_map(map_deser)
+            };
+            wrap_visitor_result(vr, &self.sexpr.span(), self.bag)
+        } else {
+            self.bag.add(diagnostic!(self.sexpr.span(), "expected map, found `{:?}`", self.sexpr.kind()));
+            Err(DeserError::DiagnosticAdded)
+        }
     }
     fn deserialize_struct<V>(mut self,
                              name: &'static str,
@@ -314,17 +281,7 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
         where V: Visitor<'de>
     {
         let struct_descr = || format!("struct {}", name);
-        let struct_sexpr = if self.sexprs.len() == 0 {
-            self.bag.add(diagnostics::nothing_found(&self.span, struct_descr()));
-            return Err(DeserError::DiagnosticAdded)
-        } else if self.sexprs.len() > 1 {
-            self.bag.add(diagnostics::multiple_values_found(&self.span, struct_descr()));
-            &self.sexprs[0]
-        } else {
-            &self.sexprs[0]
-        };
-
-        if let &Sexpr::List{ref children, ref span, ..} = struct_sexpr {
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
             if children.len() == 0 {
                 self.bag.add(diagnostics::nothing_found(span, struct_descr()));
                 Err(DeserError::DiagnosticAdded)
@@ -334,8 +291,7 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                 if let &Sexpr::Terminal(_, ref span) = first_child {
                     if span.text().as_ref() == name {
                         wrap_visitor_result(visitor.visit_map(
-                            self.with_sexprs( &children[1..], rest_span.clone())
-                        ), &rest_span, &mut self.bag)
+                            SeqDeserializer{sexprs: &children[1..], bag: self.bag}), &rest_span, self.bag)
                     } else {
                         self.bag.add(diagnostic!(
                             first_child.span(),
@@ -352,12 +308,9 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                 }
             }
         } else {
-            self.bag.add(diagnostic!(&self.span, "expected {}, found {:?}", struct_descr(), struct_sexpr.kind()));
+            self.bag.add(diagnostic!(&self.sexpr.span(), "expected {}, found {:?}", struct_descr(), self.sexpr.kind()));
             Err(DeserError::DiagnosticAdded)
         }
-
-        //wrap_visitor_result(visitor.visit_map(self.with_same()), self.span, &mut self.bag)
-        //unimplemented!()
     }
     fn deserialize_identifier<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
@@ -379,12 +332,13 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        self.bag.add(diagnostic!(&self.span, "ignored value"));
+        self.bag.add(diagnostic!(&self.sexpr.span(), "ignored value"));
         Err(DeserError::DiagnosticAdded)
     }
 }
 
-impl <'sexpr, 'bag, 'de> serde::de::SeqAccess<'de> for SexprDeserializer<'sexpr, 'bag> {
+impl <'sexpr, 'bag, 'de> serde::de::SeqAccess<'de> for SeqDeserializer <'sexpr, 'bag> {
+
     type Error = DeserError;
 
     fn next_element_seed<T: serde::de::DeserializeSeed<'de>>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> {
@@ -392,16 +346,15 @@ impl <'sexpr, 'bag, 'de> serde::de::SeqAccess<'de> for SexprDeserializer<'sexpr,
             return Ok(None);
         }
 
-        let first = &self.sexprs[..1];
-        let rest_span: Span = self.sexprs[1..].iter().map(Sexpr::span).collect();
-        let res = seed.deserialize(self.with_sexprs(first, rest_span)).map(Some);
+        let first = &self.sexprs[0];
+        let res = seed.deserialize(SexprDeserializer {sexpr: first, bag: self.bag}).map(Some);
         self.sexprs = &self.sexprs[1..];
         res
     }
 }
 
 
-impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SexprDeserializer<'sexpr, 'bag> {
+impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SeqDeserializer<'sexpr, 'bag> {
     type Error = DeserError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
@@ -411,11 +364,12 @@ impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SexprDeserializer<'sexpr,
         }
 
         if self.sexprs.len() == 1 {
-            self.bag.add(diagnostic!(&self.span, "expected key followed by `:`"));
+            let all_spans = self.all_spans();
+            self.bag.add(diagnostic!(&all_spans, "expected key followed by `:`"));
             return Err(DeserError::DiagnosticAdded);
         }
 
-        let first = &self.sexprs[0..1];
+        let first = &self.sexprs[0];
         let colon = &self.sexprs[1];
 
         if let &Sexpr::Terminal(_, ref span) = colon {
@@ -426,8 +380,7 @@ impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SexprDeserializer<'sexpr,
             self.bag.add(diagnostic!(colon.span(), "expected terminal `:`, found `{:?}`", colon.kind()));
         }
 
-        let rest_span = self.sexprs[2..].iter().map(Sexpr::span).collect();
-        let res = seed.deserialize(self.with_sexprs(first, rest_span)).map(Some);
+        let res = seed.deserialize(SexprDeserializer{sexpr: first, bag: self.bag}).map(Some);
 
         self.sexprs = &self.sexprs[2..];
 
@@ -437,13 +390,13 @@ impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SexprDeserializer<'sexpr,
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where V: serde::de::DeserializeSeed<'de> {
         if self.sexprs.len() == 0 {
-            self.bag.add(diagnostic!(&self.span, "expected value"));
+            let all_spans = self.all_spans();
+            self.bag.add(diagnostic!(&all_spans, "expected value"));
             return Err(DeserError::DiagnosticAdded);
         }
 
-        let first = &self.sexprs[..1];
-        let rest_span = self.sexprs[1..].iter().map(Sexpr::span).collect();
-        let res = seed.deserialize(self.with_sexprs(first, rest_span));
+        let first = &self.sexprs[0];
+        let res = seed.deserialize(SexprDeserializer{sexpr: first, bag: self.bag});
         self.sexprs = &self.sexprs[1..];
         res
     }

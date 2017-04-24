@@ -5,9 +5,10 @@ use super::super::Result as ParseResult;
 
 fn run_test_good<T: ::std::fmt::Debug + Eq + for <'a> Deserialize<'a>>(input: &str, value: T) {
     let ParseResult { roots, diagnostics }= ::simple_parse(input, &[":"], Some("run_test"));
+    assert!(roots.len() == 1);
     diagnostics.assert_no_errors();
 
-    match deserialize::<T>(&roots) {
+    match deserialize::<T>(&roots[0]) {
         DeserializeResult::AllGood(t) => assert_eq!(t, value),
         DeserializeResult::CouldRecover(t, mut diagnostics) => {
             diagnostics.sort();
@@ -24,8 +25,9 @@ fn run_test_good<T: ::std::fmt::Debug + Eq + for <'a> Deserialize<'a>>(input: &s
 fn run_test_bad<T: ::std::fmt::Debug + Eq + for <'a> Deserialize<'a>>(input: &str, diagnostic_messages: &[&str]) {
     let ParseResult { roots, diagnostics }= ::simple_parse(input, &[":"], Some("run_test"));
     diagnostics.assert_no_errors();
+    assert!(roots.len() == 1);
 
-    match deserialize::<T>(&roots) {
+    match deserialize::<T>(&roots[0]) {
         DeserializeResult::AllGood(t) => {
             panic!("expected to fail")
         }
@@ -61,17 +63,17 @@ fn test_simple_deserialization() {
 #[test]
 fn test_seq_deserialization() {
     // list of bools
-    run_test_good("true false true", vec![true, false, true]);
-    run_test_good::<Vec<bool>>("", vec![]);
+    run_test_good("(true false true)", vec![true, false, true]);
+    run_test_good::<Vec<bool>>("()", vec![]);
 
     // list of numbers
-    run_test_good("1 2 3 4", vec![1, 2, 3, 4]);
+    run_test_good("(1 2 3 4)", vec![1, 2, 3, 4]);
 }
 
 #[test]
 fn test_map_deserialization() {
     use std::collections::HashMap;
-    run_test_good::<HashMap<_,_>>("1:true 2:false 3:true", vec![(1, true), (2, false), (3, true)].into_iter().collect())
+    run_test_good::<HashMap<_,_>>("{1:true 2:false 3:true}", vec![(1, true), (2, false), (3, true)].into_iter().collect())
 }
 
 #[test]
@@ -99,13 +101,3 @@ fn test_tuple_struct_deserialization() {
     pub struct Foo(bool, i32, bool);
     run_test_good("(foo true 5 false)", Foo(true, 5, false));
 }
-
-/*
-#[test]
-fn test_tuple_struct_with_vec() {
-    #[derive(Deserialize, Eq, PartialEq, Debug)]
-    #[serde(rename="foo")]
-    pub struct Foo(i32);
-    run_test_good("(foo 5)", Foo(5, vec![true, false, true]));
-}
-*/
