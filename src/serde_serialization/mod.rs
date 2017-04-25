@@ -6,6 +6,7 @@ mod diagnostics;
 
 use serde;
 use serde::de::Visitor;
+use serde::de::IntoDeserializer;
 use super::Sexpr;
 use super::parse::Span;
 use super::diagnostic::{DiagnosticBag, Diagnostic};
@@ -53,6 +54,17 @@ struct SexprDeserializer<'sexpr, 'bag> {
 }
 
 struct SeqDeserializer<'sexpr, 'bag> {
+    sexprs: &'sexpr[Sexpr],
+    bag: &'bag mut DiagnosticBag,
+}
+
+struct EnumDeserializer<'sexpr, 'bag> {
+    sexprs: &'sexpr[Sexpr],
+    bag: &'bag mut DiagnosticBag,
+    index: u32,
+}
+
+struct VariantDeserializer<'sexpr, 'bag> {
     sexprs: &'sexpr[Sexpr],
     bag: &'bag mut DiagnosticBag,
 }
@@ -190,33 +202,16 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
-            if children.len() != 0 {
-                let first = &children[0];
-                if let &Sexpr::Terminal(_, ref span) = first {
-                    if span.text().as_ref() == "some" {
-                        if children.len() == 2 {
-                            visitor.visit_some(SexprDeserializer{sexpr: &children[1], bag: self.bag})
-                        } else {
-                            add(self.bag, diagnostic!(span, "`some` should have exactly 1 argument"))
-                        }
-                    } else if span.text().as_ref() == "none" {
-                        if children.len() == 1 {
-                            visitor.visit_none()
-                        } else {
-                            add(self.bag, diagnostic!(span, "`none` should not have any arguments"))
-                        }
-                    } else {
-                        add(self.bag, diagnostic!(span, "expected terminal `some` or `none`, found {}", span.text()))
-                    }
-                } else {
-                    add(self.bag, diagnostic!(self.sexpr.span(), "expected terminal `some` or `none`, found {:?}", first.kind()))
-                }
+        if let &Sexpr::Terminal(_, ref span)  = self.sexpr {
+            if span.text().as_ref() == "nil" {
+                wrap_visitor_result(visitor.visit_none(), self.sexpr.span(), self.bag)
             } else {
-                add(self.bag, diagnostic!(self.sexpr.span(), "expected option, found empty tuple"))
+                let r = visitor.visit_some(SexprDeserializer{sexpr: self.sexpr, bag: self.bag});
+                wrap_visitor_result(r, &self.sexpr.span(), self.bag)
             }
         } else {
-            add(self.bag, diagnostic!(self.sexpr.span(), "expected option, found `{:?}`", self.sexpr.kind()))
+            let r = visitor.visit_some(SexprDeserializer{sexpr: self.sexpr, bag: self.bag});
+            wrap_visitor_result(r, &self.sexpr.span(), self.bag)
         }
     }
 
@@ -370,7 +365,26 @@ impl <'sexpr, 'bag, 'de> serde::Deserializer<'de> for SexprDeserializer<'sexpr, 
                            -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        unimplemented!();
+        let desc = || format!("enum {}", name);
+        if let &Sexpr::List{ref children, ref span, ..} = self.sexpr {
+            if children.len() == 0 {
+                add(self.bag, diagnostic!(span, "expected {}, found empty list", desc()))
+            } else {
+                let first = &children[0];
+                if let &Sexpr::Terminal(_, ref span) = first {
+                    if let Some(idx) = variants.iter().position(|&c| c == span.text().as_ref()) {
+                        let res = visitor.visit_enum(EnumDeserializer{sexprs: &children[1..], bag: self.bag, index: idx as u32});
+                        wrap_visitor_result(res, span, self.bag)
+                    } else {
+                        add(self.bag, diagnostic!(span, "{} is not a variant name for {}", span.text(), desc()))
+                    }
+                } else {
+                    add(self.bag, diagnostic!(span, "expected variant name for {}, found empty list", desc()))
+                }
+            }
+        } else {
+            add(self.bag, diagnostic!(self.sexpr.span(), "expected {}, found {:?}", desc(), self.sexpr.kind()))
+        }
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -445,3 +459,52 @@ impl <'sexpr, 'bag, 'de> serde::de::MapAccess<'de> for SeqDeserializer<'sexpr, '
         res
     }
 }
+
+impl <'sexpr, 'bag, 'de> serde::de::EnumAccess<'de> for EnumDeserializer<'sexpr, 'bag> {
+    type Error = DeserError;
+    type Variant = VariantDeserializer<'sexpr, 'bag>;
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), DeserError>
+                where V: serde::de::DeserializeSeed<'de>,
+    {
+        let idx = seed.deserialize(self.index.into_deserializer())?;
+        Ok((idx, VariantDeserializer{sexprs: self.sexprs, bag: self.bag }))
+    }
+}
+impl<'sexpr, 'bag, 'de> serde::de::VariantAccess<'de> for VariantDeserializer<'sexpr, 'bag>{
+    type Error = DeserError;
+
+    fn unit_variant(self) -> Result<(), DeserError> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, DeserError>
+        where T: serde::de::DeserializeSeed<'de>,
+    {
+        // TODO: check count of sexprs
+        seed.deserialize(SexprDeserializer{sexpr: &self.sexprs[0], bag: self.bag})
+    }
+
+    fn tuple_variant<V>(self,
+                      len: usize,
+                      visitor: V) -> Result<V::Value, DeserError>
+        where V: serde::de::Visitor<'de>,
+    {
+        let map_deser = SeqDeserializer{sexprs: self.sexprs, bag: self.bag};
+        visitor.visit_seq(map_deser)
+    }
+
+    fn struct_variant<V>(self,
+                       fields: &'static [&'static str],
+                       visitor: V) -> Result<V::Value, DeserError>
+        where V: serde::de::Visitor<'de>,
+    {
+        let map_deser = SeqDeserializer{sexprs: self.sexprs, bag: self.bag};
+        visitor.visit_map(map_deser)
+    }
+}
+
+/*
+impl <'sexpr, 'bag, 'de> serde::de::VariantAccess<'de> for VariantDeserializer<'sexpr, 'bag> {
+
+}
+*/

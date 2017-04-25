@@ -129,8 +129,8 @@ fn test_deserialize_unit_structure() {
 
 #[test]
 fn test_deserialize_option() {
-    run_test_good("(none)", None as Option<i32>);
-    run_test_good("(some 32)", Some(32));
+    run_test_good("nil", None as Option<i32>);
+    run_test_good("32", Some(32));
 }
 
 #[test]
@@ -143,5 +143,25 @@ fn test_default_field() {
     }
 
     run_test_good("(foo my-integer: 5)", Foo{my_integer: 5, is_good: None});
-    run_test_good("(foo my-integer: 5 is-good: (some true))", Foo{my_integer: 5, is_good: Some(true)});
+    run_test_good("(foo my-integer: 5 is-good: true)", Foo{my_integer: 5, is_good: Some(true)});
+}
+
+#[test]
+fn test_enum() {
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[serde(rename="foo", rename_all="kebab-case")]
+    enum Foo {
+        UnitEnum,
+        NewtypeEnum(i32),
+        TupleEnum(i32, bool),
+        StructEnum {
+            x: i32,
+            b: bool
+        }
+    }
+
+    run_test_good("(unit-enum)", Foo::UnitEnum);
+    run_test_good("(newtype-enum 5)", Foo::NewtypeEnum(5));
+    run_test_good("(tuple-enum 5 true)", Foo::TupleEnum(5, true));
+    run_test_good("(struct-enum x:5 b:true)", Foo::StructEnum{x: 5, b: true});
 }
