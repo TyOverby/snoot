@@ -10,48 +10,45 @@ pub use self::diagnostic_bag::DiagnosticBag;
 macro_rules! diagnostic {
     (ERROR, $span:expr, $fmt:expr) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Error;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt), $span).with_error_level(error_level)
     }};
     (ERROR, $span:expr, $fmt:expr, $($arg:tt)*) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Error;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt, $($arg)*), $span).with_error_level(error_level)
     }};
     (INFO, $span:expr, $fmt:expr) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Info;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt), $span).with_error_level(error_level)
     }};
     (INFO, $span:expr, $fmt:expr, $($arg:tt)*) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Info;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt, $($arg)*), $span).with_error_level(error_level)
     }};
     (WARN, $span:expr, $fmt:expr) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Warn;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt), $span).with_error_level(error_level)
     }};
     (WARN, $span:expr, $fmt:expr, $($arg:tt)*) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Warn;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt, $($arg)*), $span).with_error_level(error_level)
     }};
     (CUSTOM($custom:expr), $span:expr, $fmt:expr) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Custom($custom);
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt), $span).with_error_level(error_level)
     }};
     (CUSTOM($custom:expr), $span:expr, $fmt:expr, $($arg:tt)*) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Custom($custom);
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt, $($arg)*), $span).with_error_level(error_level)
     }};
     ($span:expr, $fmt:expr) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Error;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt), $span).with_error_level(error_level)
     }};
     ($span:expr, $fmt:expr, $($arg:tt)*) => {{
         let error_level = $crate::diagnostic::DiagnosticLevel::Error;
-        $crate::diagnostic::DiagnosticBuilder::new(format!($fmt, $($arg)*), $span).with_error_level(error_level).build()
+        $crate::diagnostic::Diagnostic::new(format!($fmt, $($arg)*), $span).with_error_level(error_level)
     }};
 }
-
-#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
-pub struct Diagnostic(DiagnosticBuilder);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub enum DiagnosticLevel {
@@ -62,7 +59,7 @@ pub enum DiagnosticLevel {
 }
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
-pub struct DiagnosticBuilder {
+pub struct Diagnostic {
     pub message: String,
     pub annotations: Vec<DiagnosticAnnotation>,
     pub global_span: Span,
@@ -90,9 +87,9 @@ impl DiagnosticLevel {
     }
 }
 
-impl DiagnosticBuilder {
-    pub fn new<T: Into<String>>(message: T, span: &Span) -> DiagnosticBuilder {
-        DiagnosticBuilder {
+impl Diagnostic {
+    pub fn new<T: Into<String>>(message: T, span: &Span) -> Diagnostic {
+        Diagnostic {
             message: message.into(),
             annotations: vec![],
             global_span: span.clone(),
@@ -103,28 +100,24 @@ impl DiagnosticBuilder {
         }
     }
 
-    pub fn with_error_level(mut self, level: DiagnosticLevel) -> DiagnosticBuilder {
+    pub fn with_error_level(mut self, level: DiagnosticLevel) -> Diagnostic {
         self.error_level = level;
         self
     }
 
-    pub fn with_min_gap(mut self, gap: usize) -> DiagnosticBuilder {
+    pub fn with_min_gap(mut self, gap: usize) -> Diagnostic {
         self.min_gap = Some(gap);
         self
     }
 
-    pub fn with_garunteed_padding(mut self, padding: usize) -> DiagnosticBuilder {
+    pub fn with_garunteed_padding(mut self, padding: usize) -> Diagnostic {
         self.padding = padding;
         self
     }
 
-    pub fn add_annotation(mut self, annotation: DiagnosticAnnotation) -> DiagnosticBuilder {
+    pub fn add_annotation(mut self, annotation: DiagnosticAnnotation) -> Diagnostic {
         self.annotations.push(annotation);
         self
-    }
-
-    pub fn build(self) -> Diagnostic {
-        Diagnostic(self)
     }
 }
 
@@ -145,8 +138,7 @@ impl Debug for Diagnostic {
 
 impl Display for Diagnostic {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let &Diagnostic(ref builder) = self;
-
+        let builder = self;
         // "error" message
         writeln!(f, "{}: {}", builder.error_level.as_str(), builder.message)?;
 
@@ -294,9 +286,8 @@ fn diagnostic_macros() {
     let span = &roots[0].span();
     assert!(diagnostics.is_empty());
 
-    let error = DiagnosticBuilder::new("this is the message 5", span)
-        .with_error_level(DiagnosticLevel::Error)
-        .build();
+    let error = Diagnostic::new("this is the message 5", span)
+        .with_error_level(DiagnosticLevel::Error);
 
     let macro_error = diagnostic!(ERROR, span, "this is the message {}", 5);
 
@@ -315,9 +306,8 @@ fn test_basic_error() {
     let Result { roots, diagnostics } = ::simple_parse(source, &[], Some("<anon>"));
     assert!(diagnostics.is_empty());
 
-    let error = DiagnosticBuilder::new("this is the message", roots[0].span())
-        .with_error_level(DiagnosticLevel::Info)
-        .build();
+    let error = Diagnostic::new("this is the message", roots[0].span())
+        .with_error_level(DiagnosticLevel::Info);
 
     println!("{}", error);
     assert_eq!(error.to_string().trim(),

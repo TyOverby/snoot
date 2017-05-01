@@ -34,7 +34,7 @@ fn run_test_bad<T: ::std::fmt::Debug + Eq + for <'a> Deserialize<'a>>(input: &st
         DeserializeResult::CouldRecover(t, mut diagnostics) => {
             diagnostics.sort();
             for (diagnostic, message) in diagnostics.iter().zip(diagnostic_messages.iter()) {
-                assert_eq!(&diagnostic.0.message, &**message);
+                assert_eq!(&diagnostic.message, &**message);
             }
         }
         DeserializeResult::CouldntRecover(diagnostics) => {

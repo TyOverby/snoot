@@ -29,9 +29,9 @@ impl DiagnosticBag {
     pub fn sort(&mut self) {
         use std::cmp::Ord;
         self.diagnostics
-            .sort_by(|e1, e2| e1.0.global_span.cmp(&e2.0.global_span));
+            .sort_by(|e1, e2| e1.global_span.cmp(&e2.global_span));
         self.diagnostics
-            .sort_by(|e1, e2| e1.0.global_span.file.cmp(&e2.0.global_span.file));
+            .sort_by(|e1, e2| e1.global_span.file.cmp(&e2.global_span.file));
     }
 
     /// Appends another ErrorBag onto this one.
@@ -47,7 +47,7 @@ impl DiagnosticBag {
     /// Returns true if the bag contains any error with error level "Error"
     pub fn contains_errors(&self) -> bool {
         for error in &self.diagnostics {
-            if error.0.error_level == DiagnosticLevel::Error {
+            if error.error_level == DiagnosticLevel::Error {
                 return true;
             }
         }
@@ -57,7 +57,7 @@ impl DiagnosticBag {
     /// Returns true if the bag contains any error with error level "Warn"
     pub fn contains_warnings(&self) -> bool {
         for error in &self.diagnostics {
-            if error.0.error_level == DiagnosticLevel::Warn {
+            if error.error_level == DiagnosticLevel::Warn {
                 return true;
             }
         }
@@ -67,7 +67,7 @@ impl DiagnosticBag {
     /// Returns true if the bag contains any error with error level "Info"
     pub fn contains_info(&self) -> bool {
         for error in &self.diagnostics {
-            if error.0.error_level == DiagnosticLevel::Info {
+            if error.error_level == DiagnosticLevel::Info {
                 return true;
             }
         }
@@ -77,7 +77,7 @@ impl DiagnosticBag {
     /// Returns true if the bag contains any error with a custom error level
     pub fn contains_any_custom(&self) -> bool {
         for error in &self.diagnostics {
-            if let &DiagnosticLevel::Custom(_) = &error.0.error_level {
+            if let &DiagnosticLevel::Custom(_) = &error.error_level {
                 return true;
             }
         }
@@ -88,7 +88,7 @@ impl DiagnosticBag {
     /// error level.
     pub fn contains_custom(&self, custom: &str) -> bool {
         for error in &self.diagnostics {
-            if let &DiagnosticLevel::Custom(ref c) = &error.0.error_level {
+            if let &DiagnosticLevel::Custom(ref c) = &error.error_level {
                 if c == custom {
                     return true;
                 }
@@ -138,7 +138,7 @@ impl DiagnosticBag {
         use serde_json::Value;
 
         let mut all = vec![];
-        for &Diagnostic(ref diagnostic) in &self.diagnostics {
+        for diagnostic in &self.diagnostics {
             let sev = match diagnostic.error_level {
                 DiagnosticLevel::Error => 0,
                 DiagnosticLevel::Warn => 1,

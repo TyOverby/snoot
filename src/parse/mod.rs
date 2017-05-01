@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::token::*;
-use super::diagnostic::{Diagnostic, DiagnosticBuilder, DiagnosticLevel};
+use super::diagnostic::{Diagnostic, DiagnosticLevel};
 use tendril::StrTendril;
 use {Result, Sexpr};
 
@@ -20,7 +20,6 @@ pub struct StartEnd {
 #[derive(Eq, PartialEq, Debug, Clone, PartialOrd, Ord)]
 pub struct Span {
     pub text_bytes: StartEnd,
-    pub lines_bytes: StartEnd,
 
     pub lines_covered: StartEnd,
     pub columns: StartEnd,
@@ -37,9 +36,8 @@ pub enum SexprKind {
     String,
 }
 
-
 #[derive(Debug)]
-enum ParseDiagnostic {
+pub enum ParseDiagnostic {
     TokenizationError(TokError),
     UnclosedList(Span),
     ExtraClosing(Span),
@@ -51,7 +49,6 @@ enum ParseDiagnostic {
     },
 }
 
-
 impl ParseDiagnostic {
     pub fn into_diagnostic(self) -> Diagnostic {
         match self {
@@ -59,12 +56,12 @@ impl ParseDiagnostic {
                 unreachable!();
             }
             ParseDiagnostic::ExtraClosing(span) => {
-                let builder = DiagnosticBuilder::new("extra list closing", &span);
-                builder.with_error_level(DiagnosticLevel::Error).build()
+                let builder = Diagnostic::new("extra list closing", &span);
+                builder.with_error_level(DiagnosticLevel::Error)
             }
             ParseDiagnostic::UnclosedList(span) => {
-                let builder = DiagnosticBuilder::new("unclosed list", &span);
-                builder.with_error_level(DiagnosticLevel::Error).build()
+                let builder = Diagnostic::new("unclosed list", &span);
+                builder.with_error_level(DiagnosticLevel::Error)
             }
             ParseDiagnostic::WrongClosing {
                 opening_span,
@@ -76,8 +73,8 @@ impl ParseDiagnostic {
                     expected_list_type.to_string(false),
                     actual_list_type.to_string(false));
                 let builder =
-                    DiagnosticBuilder::new(text, &Span::from_spans(&opening_span, &closing_span));
-                builder.with_error_level(DiagnosticLevel::Error).build()
+                    Diagnostic::new(text, &Span::from_spans(&opening_span, &closing_span));
+                builder.with_error_level(DiagnosticLevel::Error)
             }
         }
     }
@@ -132,14 +129,14 @@ impl Span {
             file: None,
 
             text_bytes: StartEnd { start: 0, end: 0 },
-            lines_bytes: StartEnd { start: 0, end: 0 },
             lines_covered: StartEnd { start: 0, end: 0 },
             columns: StartEnd { start: 0, end: 0 },
         }
     }
 
     pub fn lines(&self) -> StrTendril {
-        let StartEnd { start, end } = self.lines_bytes;
+        let start = find_newline(self.text().as_bytes(), self.text_bytes.start, -1);
+        let end = find_newline(self.text().as_bytes(), self.text_bytes.end, 1);
         self.full_text.subtendril(start, end - start)
     }
 
@@ -164,10 +161,6 @@ impl Span {
             text_bytes: StartEnd {
                 start: token.byte_offset as u32,
                 end: token.byte_offset as u32 + bytes as u32,
-            },
-            lines_bytes: StartEnd {
-                start: start_line_pos as u32,
-                end: end_line_pos as u32,
             },
             lines_covered: StartEnd {
                 start: token.line_number as u32,
@@ -199,10 +192,6 @@ impl Span {
             text_bytes: StartEnd {
                 start: start.text_bytes.start,
                 end: end.text_bytes.end,
-            },
-            lines_bytes: StartEnd {
-                start: start_line_pos as u32,
-                end: end_line_pos as u32,
             },
             lines_covered: StartEnd {
                 start: start.lines_covered.start,
