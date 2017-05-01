@@ -19,6 +19,10 @@ impl DiagnosticBag {
         DiagnosticBag { diagnostics: v }
     }
 
+    pub fn len(&self) -> usize {
+        self.diagnostics.len()
+    }
+
     /// Sorts the errors contained in the bag for better printing.
     ///
     /// The sort order is by filename (primary) and by file location (secondary)

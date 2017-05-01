@@ -12,21 +12,21 @@ pub mod simplified_test;
 use self::scopestack::ScopeStack;
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
-pub(crate) struct StartEnd {
+pub struct StartEnd {
     pub start: u32,
     pub end: u32,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, PartialOrd, Ord)]
 pub struct Span {
-    pub(crate) text_bytes: StartEnd,
-    pub(crate) lines_bytes: StartEnd,
+    pub text_bytes: StartEnd,
+    pub lines_bytes: StartEnd,
 
-    pub(crate) lines_covered: StartEnd,
-    pub(crate) columns: StartEnd,
+    pub lines_covered: StartEnd,
+    pub columns: StartEnd,
 
-    pub(crate) full_text: StrTendril,
-    pub(crate) file: Option<Rc<String>>,
+    pub full_text: StrTendril,
+    pub file: Option<Rc<String>>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -39,7 +39,7 @@ pub enum SexprKind {
 
 
 #[derive(Debug)]
-pub(crate) enum ParseDiagnostic {
+enum ParseDiagnostic {
     TokenizationError(TokError),
     UnclosedList(Span),
     ExtraClosing(Span),
@@ -84,28 +84,30 @@ impl ParseDiagnostic {
 }
 
 
-fn find_newline(t: &[u8], pos: u32, direction: isize) -> u32 {
-    // We're searching backwards and we've hit the start of the buffer
-    if pos == 0 && direction == -1 {
-        if t[0] == b'\n' {
-            return 1;
-        } else {
-            return 0;
+fn find_newline(t: &[u8], mut pos: u32, direction: isize) -> u32 {
+    loop {
+        // We're searching backwards and we've hit the start of the buffer
+        if pos == 0 && direction == -1 {
+            if t[0] == b'\n' {
+                return 1;
+            } else {
+                return 0;
+            }
         }
-    }
 
-    // We're searching forwards and we've hit the end of the buffer
-    if pos as usize == t.len() && direction == 1 {
-        return pos;
-    }
+        // We're searching forwards and we've hit the end of the buffer
+        if pos as usize == t.len() && direction == 1 {
+            return pos;
+        }
 
-    match (t[pos as usize], direction) {
-        (b'\n', -1) => return pos + 1,
-        (b'\n', 1) => return pos,
-        _ => {}
-    }
+        match (t[pos as usize], direction) {
+            (b'\n', -1) => return pos + 1,
+            (b'\n', 1) => return pos,
+            _ => {}
+        }
 
-    return find_newline(t, ((pos as isize) + (direction as isize)) as u32, direction);
+        pos = (pos as isize + direction as isize) as u32;
+    }
 }
 
 impl <'a> ::std::iter::FromIterator<&'a Span> for Span {

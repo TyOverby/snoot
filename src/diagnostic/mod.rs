@@ -51,7 +51,7 @@ macro_rules! diagnostic {
 }
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
-pub struct Diagnostic(pub(crate) DiagnosticBuilder);
+pub struct Diagnostic(DiagnosticBuilder);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub enum DiagnosticLevel {

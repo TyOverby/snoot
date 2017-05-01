@@ -3,6 +3,7 @@ extern crate regex;
 extern crate itertools;
 #[macro_use]
 extern crate serde_json;
+#[cfg(test)]
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;

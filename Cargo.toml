@@ -12,6 +12,6 @@ regex = "0.2.1"
 itertools = "0.5.9"
 
 serde_json = "0.9.*"
-serde_derive = { git = "https://github.com/serde-rs/serde", branch = "master" }
-serde = { git = "https://github.com/serde-rs/serde", branch = "master" }
+serde_derive = "1.*.*"
+serde = "1.*.*"
 

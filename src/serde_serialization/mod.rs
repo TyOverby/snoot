@@ -17,31 +17,6 @@ pub enum DeserializeResult<T> {
     CouldntRecover(DiagnosticBag),
 }
 
-pub fn deserialize<'sexpr, T: serde::Deserialize<'sexpr>>(sexpr: &'sexpr Sexpr) -> DeserializeResult<T> {
-    let mut bag = DiagnosticBag::new();
-    let res = {
-        let deserializer = SexprDeserializer {
-            sexpr: sexpr,
-            bag: &mut bag,
-        };
-
-        T::deserialize(deserializer)
-    };
-
-    match res {
-        Ok(t) => {
-            if bag.is_empty() {
-                DeserializeResult::AllGood(t)
-            } else {
-                DeserializeResult::CouldRecover(t, bag)
-            }
-        }
-        Err(e) => {
-            DeserializeResult::CouldntRecover(bag)
-        }
-    }
-}
-
 #[derive(Debug)]
 enum DeserError {
     Custom { message: String, },
@@ -67,6 +42,73 @@ struct EnumDeserializer<'sexpr, 'bag> {
 struct VariantDeserializer<'sexpr, 'bag> {
     sexprs: &'sexpr[Sexpr],
     bag: &'bag mut DiagnosticBag,
+}
+
+impl <T> DeserializeResult<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            DeserializeResult::AllGood(t) => t,
+            DeserializeResult::CouldRecover(t, b) => {
+                b.assert_empty();
+                t
+            }
+            DeserializeResult::CouldntRecover(b) => {
+                b.assert_empty();
+                unreachable!();
+            }
+        }
+    }
+}
+
+impl <'a, T> ::std::iter::FromIterator<DeserializeResult<T>> for DeserializeResult<Vec<T>> {
+    fn from_iter<I: IntoIterator<Item=DeserializeResult<T>>>(iter: I) -> DeserializeResult<Vec<T>> {
+        let mut out_items = vec![];
+        let mut out_bag = DiagnosticBag::new();
+        for res in iter {
+            match res {
+                DeserializeResult::AllGood(t) => {
+                    out_items.push(t);
+                }
+                DeserializeResult::CouldRecover(t, b) => {
+                    out_items.push(t);
+                    out_bag.append(b);
+                }
+                DeserializeResult::CouldntRecover(b) => {
+                    out_bag.append(b);
+                }
+            }
+        }
+
+        match (out_items.len(), out_bag.len()) {
+            (_, 0) => DeserializeResult::AllGood(out_items),
+            (0, _) => DeserializeResult::CouldntRecover(out_bag),
+            (_, _) => DeserializeResult::CouldRecover(out_items, out_bag),
+        }
+    }
+}
+pub fn deserialize<'sexpr, T: serde::Deserialize<'sexpr>>(sexpr: &'sexpr Sexpr) -> DeserializeResult<T> {
+    let mut bag = DiagnosticBag::new();
+    let res = {
+        let deserializer = SexprDeserializer {
+            sexpr: sexpr,
+            bag: &mut bag,
+        };
+
+        T::deserialize(deserializer)
+    };
+
+    match res {
+        Ok(t) => {
+            if bag.is_empty() {
+                DeserializeResult::AllGood(t)
+            } else {
+                DeserializeResult::CouldRecover(t, bag)
+            }
+        }
+        Err(e) => {
+            DeserializeResult::CouldntRecover(bag)
+        }
+    }
 }
 
 impl <'sexpr, 'bag> SeqDeserializer<'sexpr, 'bag> {
@@ -502,9 +544,3 @@ impl<'sexpr, 'bag, 'de> serde::de::VariantAccess<'de> for VariantDeserializer<'s
         visitor.visit_map(map_deser)
     }
 }
-
-/*
-impl <'sexpr, 'bag, 'de> serde::de::VariantAccess<'de> for VariantDeserializer<'sexpr, 'bag> {
-
-}
-*/

@@ -42,8 +42,7 @@ pub struct TokenIterator<'a> {
 }
 
 impl ListType {
-    #[allow(dead_code)]
-    pub(crate) fn to_string(&self, open: bool) -> String {
+    pub fn to_string(&self, open: bool) -> String {
         match (*self, open) {
                 (ListType::Paren, true) => "(",
                 (ListType::Brace, true) => "{",

@@ -62,11 +62,9 @@ fn test_simple_deserialization() {
 
 #[test]
 fn test_seq_deserialization() {
-    // list of bools
     run_test_good("(true false true)", vec![true, false, true]);
     run_test_good::<Vec<bool>>("()", vec![]);
 
-    // list of numbers
     run_test_good("(1 2 3 4)", vec![1, 2, 3, 4]);
 }
 

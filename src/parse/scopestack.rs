@@ -12,7 +12,7 @@ enum ParseStackItem {
     },
 }
 
-pub(crate) struct ScopeStack {
+pub struct ScopeStack {
     stack: Vec<ParseStackItem>,
     string: StrTendril,
     file: Option<Rc<String>>,
@@ -31,7 +31,7 @@ impl ScopeStack {
         self.stack
             .push(ParseStackItem::ListOpening {
                       opening: token,
-                      typ,
+                      typ: typ,
                       children: vec![],
                   });
     }
