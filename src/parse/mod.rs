@@ -151,10 +151,6 @@ impl Span {
             .len();
         let bytes = token.length;
 
-        let start_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, -1);
-        let end_line_pos = find_newline(string.as_bytes(), token.byte_offset as u32, 1);
-        assert!(end_line_pos >= start_line_pos);
-
         Span {
             file: file.clone(),
             full_text: string.clone(),
@@ -174,16 +170,12 @@ impl Span {
     }
 
     pub fn from_spans(start: &Span, end: &Span) -> Span {
-        let string = start.full_text.clone();
         let (start, end) = if start.text_bytes.start < end.text_bytes.start {
             (start, end)
         } else {
             (end, start)
         };
 
-        let start_line_pos = find_newline(string.as_bytes(), start.text_bytes.start, -1);
-        let end_line_pos = find_newline(string.as_bytes(), end.text_bytes.end, 1);
-        assert!(end_line_pos >= start_line_pos);
         debug_assert!(start.file == end.file);
 
         Span {

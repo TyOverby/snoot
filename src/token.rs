@@ -95,6 +95,7 @@ impl<'a> Iterator for TokenIterator<'a> {
     }
 }
 
+// TODO: this is slow, replace it
 fn next_token(string: &StrTendril,
               splitters: &[&str])
               -> Option<TokResult<(TokenType, StrTendril)>> {
@@ -196,7 +197,6 @@ mod test {
                             line_number: 1,
                             column_number: 1,
                             byte_offset: 0,
-                            // TODO: change from 0 to something meaningful
                             typ: TokenType::ListOpening(ListType::Paren),
                             length: 1,
                         }]);
