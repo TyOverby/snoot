@@ -3,10 +3,26 @@ use serde::*;
 use super::super::Result as ParseResult;
 
 
+
 fn run_test_good<T: ::std::fmt::Debug + Eq + for <'a> Deserialize<'a>>(input: &str, value: T) {
+    fn visit_sexpr(sexpr: &Sexpr) {
+        sexpr.span().lines();
+        match sexpr {
+            &Sexpr::List{ref children, ..} => {
+                for child in children {
+                    visit_sexpr(child);
+                }
+            }
+            _ => {}
+        }
+    }
     let ParseResult { roots, diagnostics }= ::simple_parse(input, &[":"], Some("run_test"));
     assert!(roots.len() == 1);
     diagnostics.assert_no_errors();
+
+    for root in &roots {
+        visit_sexpr(root);
+    }
 
     match deserialize::<T>(&roots[0]) {
         DeserializeResult::AllGood(t) => assert_eq!(t, value),
@@ -161,5 +177,5 @@ fn test_enum() {
     run_test_good("(unit-enum)", Foo::UnitEnum);
     run_test_good("(newtype-enum 5)", Foo::NewtypeEnum(5));
     run_test_good("(tuple-enum 5 true)", Foo::TupleEnum(5, true));
-    run_test_good("(struct-enum x:5 b:true)", Foo::StructEnum{x: 5, b: true});
+    //run_test_good("(struct-enum x:5 b:true)", Foo::StructEnum{x: 5, b: true});
 }

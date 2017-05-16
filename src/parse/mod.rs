@@ -135,8 +135,8 @@ impl Span {
     }
 
     pub fn lines(&self) -> StrTendril {
-        let start = find_newline(self.text().as_bytes(), self.text_bytes.start, -1);
-        let end = find_newline(self.text().as_bytes(), self.text_bytes.end, 1);
+        let start = find_newline(self.full_text.as_bytes(), self.text_bytes.start, -1);
+        let end = find_newline(self.full_text.as_bytes(), self.text_bytes.end, 1);
         self.full_text.subtendril(start, end - start)
     }
 

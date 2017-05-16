@@ -71,13 +71,17 @@ impl<'a> Iterator for TokenIterator<'a> {
                                     length: s.len32(),
                                 }));
 
-                for chr in s.as_ref().chars() {
-                    if chr == '\n' {
-                        self.line_number += 1;
-                        self.column_number = 1;
-                    } else {
-                        self.column_number += 1;
+                if let TokenType::Whitespace = typ {
+                    for chr in s.as_bytes().iter() {
+                        if *chr ==  b'\n' {
+                            self.line_number += 1;
+                            self.column_number = 1;
+                        } else {
+                            self.column_number += 1;
+                        }
                     }
+                } else {
+                    self.column_number += s.len();
                 }
 
                 let bytes_consumed = s.len();
@@ -99,36 +103,42 @@ impl<'a> Iterator for TokenIterator<'a> {
 fn next_token(string: &StrTendril,
               splitters: &[&str])
               -> Option<TokResult<(TokenType, StrTendril)>> {
-    fn idx_until<F>(s: &str, f: F) -> Option<usize>
-        where F: Fn(char) -> bool
+    fn idx_until<F>(s: &[u8], f: F) -> Option<usize>
+        where F: Fn(u8) -> bool
     {
-        s.char_indices()
-            .take_while(|&(_, c)| f(c))
+        s.iter().enumerate()
+            .take_while(|&(_, &c)| f(c))
             .last()
-            .map(|(p, c)| p + c.len_utf8())
+            .map(|(p, _)| p + 1)
+    }
+    fn is_whitespace(b: u8) -> bool {
+        match b {
+            b' ' | b'\n' | b'\r' | b'\t'  => true,
+            _ => false
+        }
     }
 
-    let first = match string.as_ref().chars().next() {
+    let first = match string.as_bytes().iter().cloned().next() {
         Some(c) => c,
         None => return None,
     };
 
     let next = match first {
-        c if c.is_whitespace() => {
-            let last_idx = idx_until(string.as_ref(), char::is_whitespace).unwrap();
+        b if is_whitespace(b) => {
+            let last_idx = idx_until(string.as_bytes(), is_whitespace).unwrap();
             Some(Ok((TokenType::Whitespace, string.subtendril(0, last_idx as u32))))
         }
 
-        '(' => Some(Ok((TokenType::ListOpening(ListType::Paren), string.subtendril(0, 1)))),
-        '{' => Some(Ok((TokenType::ListOpening(ListType::Brace), string.subtendril(0, 1)))),
-        '[' => Some(Ok((TokenType::ListOpening(ListType::Bracket), string.subtendril(0, 1)))),
-        ')' => Some(Ok((TokenType::ListClosing(ListType::Paren), string.subtendril(0, 1)))),
-        '}' => Some(Ok((TokenType::ListClosing(ListType::Brace), string.subtendril(0, 1)))),
-        ']' => Some(Ok((TokenType::ListClosing(ListType::Bracket), string.subtendril(0, 1)))),
+        b'(' => Some(Ok((TokenType::ListOpening(ListType::Paren), string.subtendril(0, 1)))),
+        b'{' => Some(Ok((TokenType::ListOpening(ListType::Brace), string.subtendril(0, 1)))),
+        b'[' => Some(Ok((TokenType::ListOpening(ListType::Bracket), string.subtendril(0, 1)))),
+        b')' => Some(Ok((TokenType::ListClosing(ListType::Paren), string.subtendril(0, 1)))),
+        b'}' => Some(Ok((TokenType::ListClosing(ListType::Brace), string.subtendril(0, 1)))),
+        b']' => Some(Ok((TokenType::ListClosing(ListType::Bracket), string.subtendril(0, 1)))),
         _ => {
-            let last_idx = idx_until(string.as_ref(), |c| match c {
-                '(' | '{' | '[' | ')' | '}' | ']' => false,
-                _ if c.is_whitespace() => false,
+            let last_idx = idx_until(string.as_bytes(), |b| match b {
+                b'(' | b'{' | b'[' | b')' | b'}' | b']' => false,
+                c if is_whitespace(c) => false,
                 _ => true,
             })
                     .unwrap();
