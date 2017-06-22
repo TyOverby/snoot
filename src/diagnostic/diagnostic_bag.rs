@@ -4,12 +4,19 @@ use std::fmt::{Display, Formatter, Debug};
 use std::fmt::Result as FmtResult;
 
 /// A structure that contains Snoot errors for easy sorting and printing
+#[derive(Eq, PartialEq)]
 pub struct DiagnosticBag {
     diagnostics: Vec<Diagnostic>,
 }
 
 impl DiagnosticBag {
-    /// Constructs a new ErrorBag
+    /// Constructs a DiagnosticBag with a single diagnostic
+    pub fn singleton(d: Diagnostic) -> DiagnosticBag {
+        DiagnosticBag {
+            diagnostics: vec![d]
+        }
+    }
+    /// Constructs an empty DiagnosticBag
     pub fn new() -> DiagnosticBag {
         DiagnosticBag { diagnostics: vec![] }
     }
