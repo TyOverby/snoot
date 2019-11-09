@@ -7,7 +7,7 @@
 * perform no copies on the source text while parsing?
 * come with an error-reporting and formatting mechanism?
 * keep parsing after encountering the first parse error?
-* have as cute of a name as "Snoot"?
+* have name as cute as "Snoot"?
 
 At the very least the answer to the last of those is a definitive "no".
 
@@ -25,7 +25,7 @@ embedded source without even needing to get your hands dirty.
 
 ## Parsing Resiliency
 Do your homemade parsers run home crying after they encounter the first parse error?  Sad.
-Snoot keeps marching on in the face of hardships so that you can report as many errors
+In the face of hardships, Snoot stoicly marches on so that you can report as many errors
 to your users as possible.
 
 # Examples
